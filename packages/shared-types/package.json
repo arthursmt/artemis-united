@@ -1,0 +1,26 @@
+{
+  "name": "@artemis-united/shared-types",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint .",
+    "test": "echo \"no tests yet\" && exit 0",
+    "generate": "echo \"TODO: wire up openapi-typescript once the OpenAPI contract exists (e.g. openapi-typescript ../../contracts/openapi.yaml -o src/generated/api.ts)\""
+  },
+  "devDependencies": {
+    "@artemis-united/config": "*",
+    "eslint": "^9.15.0",
+    "typescript": "^5.6.3"
+  }
+}

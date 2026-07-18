@@ -1,0 +1,8 @@
+{
+  "extends": "@artemis-united/config/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}
