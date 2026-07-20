@@ -1,4 +1,4 @@
-import { jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { integer, jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 // Nenhuma modelagem formal foi encontrada no repositório para este dominio;
 // as tabelas abaixo sao uma primeira aproximacao a partir dos nomes pedidos
@@ -36,7 +36,10 @@ export const assessments = bobSchema.table('assessments', {
   id: uuid('id').primaryKey().defaultRandom(),
   businessId: uuid('business_id').notNull(),
   status: assessmentStatus('status').notNull().default('draft'),
-  requestedAmount: numeric('requested_amount', { precision: 14, scale: 2 }).notNull(),
+  // Nullable — nenhuma tela ainda pede "quanto você quer pedir" explicitamente;
+  // fica null até existir esse input real. Decisão fechada na Etapa 3 (revisando
+  // o NOT NULL original), não usar recommendedAmount como placeholder.
+  requestedAmount: numeric('requested_amount', { precision: 14, scale: 2 }),
   currency: text('currency').notNull().default('USD'),
   // Copia exata do DRE/dados financeiros usados nesta rodada de calculo (auditoria).
   inputSnapshot: jsonb('input_snapshot').notNull(),
@@ -82,6 +85,15 @@ export const assessmentOutcomes = bobSchema.table('assessment_outcomes', {
     .references(() => assessments.id, { onDelete: 'cascade' }),
   outcome: assessmentOutcomeResult('outcome').notNull(),
   selectedOfferId: uuid('selected_offer_id').references(() => institutionOffers.id),
+  // Termos reais do crédito efetivamente tomado pelo usuário — distintos da oferta
+  // cotada em institutionOffers (cache, "não fonte de verdade"). Colunas diretas,
+  // não jsonb: campo conhecido e estável, ao contrário de institutionOffers.terms
+  // (formato varia por instituição externa). Ver docs/bob-engine-parametros-setoriais.md
+  // Seção 9, nota técnica.
+  effectiveInterestRate: numeric('effective_interest_rate'),
+  termMonths: integer('term_months'),
+  collateralDescription: text('collateral_description'),
+  ownerEquityContributed: numeric('owner_equity_contributed'),
   decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
   notes: text('notes'),
 })
