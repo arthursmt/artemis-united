@@ -2,7 +2,7 @@
 
 > Documento de apoio à Etapa 3 do Walking Skeleton (DRE mínimo → `bob-engine` → resultado real) e ao critério de aceitação 6.1 do plano mestre ("fórmula determinística segmentada por setor"). Contém levantamento de dados de fontes públicas **e** as decisões de produto fechadas com o fundador em cima desse levantamento (Seção 9) — pronto para orientar a implementação da Etapa 3.
 >
-> Status: 🟢 Levantamento e decisões de escopo fechados para os 13 setores prioritários do ICP · 🟡 Uso futuro como diferencial de negócio (base de dados proprietária de underwriting) sinalizado para o projeto de ecossistema, não decidido aqui
+> Status: 🟢 Levantamento e decisões de escopo fechados para os 14 setores prioritários do ICP · 🟡 Uso futuro como diferencial de negócio (base de dados proprietária de underwriting) sinalizado para o projeto de ecossistema, não decidido aqui
 
 ---
 
@@ -179,11 +179,12 @@ Não pesquisados por prioridade/tempo, mas prováveis de aparecer no cadastro da
 3. **Taxa de default SBA por setor** (Seção 4.3) → alimenta o ajuste do item 2 (DSCR-alvo mais conservador para setores de maior risco).
 4. **Custo de dívida corrente** (Seção 4.2) → usado para estimar custo de serviço da dívida nova recomendada, dado o tipo de produto de crédito mais provável (SBA microloan é o mais realista para o ICP, dado o porte de faturamento esperado).
 5. **WACC/ND\***: substituído pela capacidade de dívida via DSCR-alvo (Seção 3) — decisão fechada, não reabrir sem justificativa nova.
-6. **Regra de `confidence_level` por setor** (escala 1–10, decidida com o fundador):
-   - Setor **sem parâmetro de segmentação** (fallback da Seção 1) → confiança moderada-baixa por padrão, faixa **4–5**.
-   - Setor **com fonte de triangulação fraca** (Creche 5.13, Lavanderia 5.14) → confiança no mesmo patamar do fallback (4–5), mesmo tendo parâmetro, porque o parâmetro em si tem baixa robustez.
-   - Setor **com fonte mais forte e triangulada** (ex: Construção via NAHB, DSCR via SBA/bancos) → confiança mais alta que a média dos demais setores com parâmetro — o motor deve diferenciar setores por qualidade de fonte, não tratar todo setor "com parâmetro" como equivalente.
-   - Demais setores com parâmetro triangulado (a maioria dos 13) → patamar intermediário entre os dois extremos acima; a calibração fina do número exato fica para quando houver dado real de uso (mesma lógica já prevista para o risco monitorado da decisão #34 do plano mestre).
+6. **Regra de `confidence_level` por setor** (implementada como enum `low` / `medium` / `high` no schema, não como escala numérica 1–10 — a intenção original abaixo foi traduzida mecanicamente para os três níveis do banco):
+   - Setor **sem parâmetro de segmentação** (fallback da Seção 1) → confiança moderada-baixa por padrão, nível **`low`**.
+   - Setor **com fonte de triangulação fraca** (Creche 5.13, Lavanderia 5.14) → mesmo nível do fallback (**`low`**), mesmo tendo parâmetro, porque o parâmetro em si tem baixa robustez.
+   - Setor **com fonte mais forte e triangulada** (ex: Construção via NAHB, DSCR via SBA/bancos) → nível **`high`** — o motor deve diferenciar setores por qualidade de fonte, não tratar todo setor "com parâmetro" como equivalente.
+   - Demais setores com parâmetro triangulado (a maioria dos 14) → nível intermediário **`medium`**; a calibração fina de quais setores merecem `high` vs. `medium` fica para quando houver dado real de uso (mesma lógica já prevista para o risco monitorado da decisão #34 do plano mestre).
+   - Gatilho de sanity-check de margem (item 1 acima) → desce um nível (`high`→`medium`, `medium`→`low`), tradução direta do "-2" original agora que a escala é ordinal de 3 níveis, não numérica de 10.
 
 ---
 
@@ -198,9 +199,9 @@ Os 5 setores da Seção 6 (manicure/spa combinado, boutique de bairro, transport
 | Decisão | Racional resumido |
 |---|---|
 | WACC clássico substituído por capacidade de dívida via DSCR-alvo por setor (fórmula na Seção 3) | Não existe dado público de custo de capital próprio para microempresa em nenhuma fonte pesquisada; DSCR e custo de dívida (Seção 4) têm dado real e público, WACC não |
-| V1 cobre os 13 setores do documento (Seção 5), sem redução de escopo | Fundador optou por cobertura ampla desde o V1 em vez de subconjunto reduzido |
+| V1 cobre os 14 setores do documento (Seção 5), sem redução de escopo | Fundador optou por cobertura ampla desde o V1 em vez de subconjunto reduzido |
 | Creche e Lavanderia entram no V1 com ressalva de confiança rebaixada (mesmo patamar do fallback), não ficam de fora | Fonte fraca não é motivo de exclusão, mas precisa ser sinalizada ao usuário via `confidence_level` |
-| Regra de `confidence_level` por qualidade de fonte definida (fallback e fonte fraca = 4–5; fonte forte = acima da média; demais = intermediário) | Comportamento de produto explícito, evita ficar a critério da implementação decidir isso sozinha |
+| Regra de `confidence_level` por qualidade de fonte definida (fallback e fonte fraca = `low`; fonte forte = `high`; demais = `medium`) — implementado como enum de 3 níveis no schema, não escala numérica | Comportamento de produto explícito, evita ficar a critério da implementação decidir isso sozinha |
 | Setor de maior risco (Seção 4.3) ajusta DSCR-alvo, valor de parcela recomendado e taxa de referência da simulação — não só a confiança exibida | Fundador definiu que risco setorial deve mudar o número da recomendação, não só um rótulo de confiança ao lado dele |
 | Taxa de juros efetiva tomada, prazo, garantia e capital próprio aportado **não são inputs necessários para o cálculo do V1** — são *outputs* que o BoB apresenta ao usuário (ex: comparação com mercado) e, depois, *outcomes* a capturar em `assessment_outcomes` para aprendizado futuro | Reformulação do fundador: o BoB informa esses dados ao usuário, não depende deles como pré-requisito; o gap real é garantir que `assessment_outcomes` tenha campo para registrar o que o usuário efetivamente tomou, para comparação futura com a recomendação — ver nota abaixo |
 | RMA Annual Statement Studies não será licenciada agora | V1 segue com as fontes públicas secundárias já consolidadas neste documento; decisão revisitável no futuro |
