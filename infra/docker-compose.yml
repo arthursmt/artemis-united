@@ -17,5 +17,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Metabase only stores its own app config in this local container. The data
+  # connection always points at the remote Neon branch (staging/prod), via the
+  # read-only metabase_readonly role — never at the local `postgres` service
+  # above. See services/bob-engine/drizzle/manual/0001_metabase_readonly_role.sql
+  # for the role, and .env.example for the vars this expects.
+  metabase:
+    image: metabase/metabase:latest
+    container_name: artemis-united-metabase
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: ${METABASE_DB_NAME}
+      MB_DB_PORT: 5432
+      MB_DB_USER: metabase_readonly
+      MB_DB_PASS: ${METABASE_DB_PASSWORD}
+      MB_DB_HOST: ${METABASE_DB_HOST}
+
 volumes:
   postgres-data:
