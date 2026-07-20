@@ -1,0 +1,1 @@
+ALTER TABLE "bob"."assessments" ALTER COLUMN "requested_amount" DROP NOT NULL;

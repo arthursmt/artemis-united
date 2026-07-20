@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@artemis-united/shared-types": "*",
+    "@sentry/node": "^9.0.0",
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.1",
     "pg": "^8.22.0"
