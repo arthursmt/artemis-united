@@ -124,5 +124,8 @@ assessmentsRouter.post('/', async (req, res) => {
     exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
     marginSanityTriggered: result.marginSanityTriggered,
     sectorFound: result.sectorFound,
+    noi: result.noi,
+    dscrTarget: result.dscrTarget,
+    monthlyNewDebtCapacity: result.monthlyNewDebtCapacity,
   })
 })
