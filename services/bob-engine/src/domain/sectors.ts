@@ -6,8 +6,12 @@
 // como contagem aproximada; aqui cada subseção vira um segmento próprio porque a
 // classificação de risco (revisada) já trata full-service e quick-service como
 // itens distintos.
+//
+// slug + label vêm de @artemis-united/shared-types (fonte única, mesmo padrão de
+// apps/api) — risco/confiança/margem são dado de underwriting e continuam só aqui,
+// não fazem sentido fora do domínio do bob-engine.
 
-import type { SectorSegment } from '@artemis-united/shared-types'
+import { SECTOR_SEGMENT_OPTIONS, type SectorSegment } from '@artemis-united/shared-types'
 
 export type SectorRiskTier = 'alto' | 'padrao'
 export type SectorConfidenceTier = 'forte' | 'padrao' | 'fraca'
@@ -23,108 +27,52 @@ export interface SectorProfile {
   netMarginRange: readonly [number, number]
 }
 
-export const SECTORS: readonly SectorProfile[] = [
-  {
-    slug: 'restaurante_full_service',
-    label: 'Restaurante — serviço completo',
-    riskTier: 'alto',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.03, 0.09],
-  },
-  {
-    slug: 'restaurante_quick_service',
-    label: 'Restaurante — quick-service / fast-casual',
-    riskTier: 'alto',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.04, 0.12],
-  },
-  {
-    slug: 'padaria',
-    label: 'Padaria',
-    riskTier: 'padrao',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.05, 0.15],
-  },
-  {
-    slug: 'barbearia',
-    label: 'Barbearia',
-    riskTier: 'alto',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.08, 0.2],
-  },
-  {
-    slug: 'salao_beleza',
-    label: 'Salão de cabelo / beleza',
-    riskTier: 'alto',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.02, 0.15],
-  },
-  {
-    slug: 'loja_conveniencia',
-    label: 'Loja de conveniência / mercearia de bairro / bodega',
+interface SectorUnderwritingData {
+  riskTier: SectorRiskTier
+  confidenceTier: SectorConfidenceTier
+  netMarginRange: readonly [number, number]
+}
+
+const UNDERWRITING_DATA: Record<SectorSegment, SectorUnderwritingData> = {
+  restaurante_full_service: { riskTier: 'alto', confidenceTier: 'padrao', netMarginRange: [0.03, 0.09] },
+  restaurante_quick_service: { riskTier: 'alto', confidenceTier: 'padrao', netMarginRange: [0.04, 0.12] },
+  padaria: { riskTier: 'padrao', confidenceTier: 'padrao', netMarginRange: [0.05, 0.15] },
+  barbearia: { riskTier: 'alto', confidenceTier: 'padrao', netMarginRange: [0.08, 0.2] },
+  salao_beleza: { riskTier: 'alto', confidenceTier: 'padrao', netMarginRange: [0.02, 0.15] },
+  loja_conveniencia: {
     riskTier: 'alto',
     confidenceTier: 'padrao',
     // Combina conveniência (~5-10%) e mercearia independente (1-3%) — categoria
     // única na fonte (5.6), banda ampliada para cobrir ambos os subtipos.
     netMarginRange: [0.01, 0.1],
   },
-  {
-    slug: 'limpeza',
-    label: 'Limpeza (residencial e comercial)',
-    riskTier: 'padrao',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.1, 0.28],
-  },
-  {
-    slug: 'construcao',
-    label: 'Construção / reforma residencial',
+  limpeza: { riskTier: 'padrao', confidenceTier: 'padrao', netMarginRange: [0.1, 0.28] },
+  construcao: {
     riskTier: 'alto',
     confidenceTier: 'forte', // NAHB citada como a fonte mais rigorosa deste grupo
     netMarginRange: [0.05, 0.12],
   },
-  {
-    slug: 'paisagismo',
-    label: 'Paisagismo / jardinagem',
-    riskTier: 'padrao',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.1, 0.4],
-  },
-  {
-    slug: 'food_truck',
-    label: 'Food truck',
-    riskTier: 'padrao',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.06, 0.15],
-  },
-  {
-    slug: 'oficina_mecanica',
-    label: 'Oficina mecânica (auto repair)',
-    riskTier: 'padrao',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.06, 0.2],
-  },
-  {
-    slug: 'salao_unhas',
-    label: 'Salão de unhas (nail salon)',
-    riskTier: 'alto',
-    confidenceTier: 'padrao',
-    netMarginRange: [0.15, 0.4],
-  },
-  {
-    slug: 'creche',
-    label: 'Creche / cuidado infantil',
+  paisagismo: { riskTier: 'padrao', confidenceTier: 'padrao', netMarginRange: [0.1, 0.4] },
+  food_truck: { riskTier: 'padrao', confidenceTier: 'padrao', netMarginRange: [0.06, 0.15] },
+  oficina_mecanica: { riskTier: 'padrao', confidenceTier: 'padrao', netMarginRange: [0.06, 0.2] },
+  salao_unhas: { riskTier: 'alto', confidenceTier: 'padrao', netMarginRange: [0.15, 0.4] },
+  creche: {
     riskTier: 'padrao',
     confidenceTier: 'fraca', // fonte de triangulação fraca — Seção 7.6
     netMarginRange: [0.05, 0.25],
   },
-  {
-    slug: 'lavanderia',
-    label: 'Lavanderia self-service',
+  lavanderia: {
     riskTier: 'padrao',
     confidenceTier: 'fraca', // fonte de triangulação fraca — Seção 7.6
     netMarginRange: [0.25, 0.35],
   },
-] as const
+}
+
+export const SECTORS: readonly SectorProfile[] = SECTOR_SEGMENT_OPTIONS.map((option) => ({
+  slug: option.slug,
+  label: option.label,
+  ...UNDERWRITING_DATA[option.slug],
+}))
 
 const SECTORS_BY_SLUG = new Map<string, SectorProfile>(SECTORS.map((sector) => [sector.slug, sector]))
 

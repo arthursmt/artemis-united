@@ -1,7 +1,7 @@
 // Fonte única dos 14 setores prioritários do ICP — usada tanto por apps/api (validação na
 // criação de negócio) quanto por services/bob-engine (services/bob-engine/src/domain/sectors.ts
-// importa o tipo SectorSegment daqui). Labels copiados de lá; dados de risco/confiança/margem
-// (underwriting) continuam vivendo só em bob-engine, não duplicados aqui.
+// importa slug+label daqui e mescla com os dados de risco/confiança/margem locais, que são
+// underwriting e não fazem sentido fora do domínio do bob-engine).
 export const SECTOR_SEGMENT_OPTIONS = [
   { slug: 'restaurante_full_service', label: 'Restaurante — serviço completo' },
   { slug: 'restaurante_quick_service', label: 'Restaurante — quick-service / fast-casual' },
