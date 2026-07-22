@@ -73,10 +73,9 @@ businessesRouter.post('/', requireAuth, async (req, res) => {
       res.status(409).json({ error: 'you already have a business registered' })
       return
     }
-    // Express 4 não captura rejeições de handler async sozinho — sem isto, um erro
-    // inesperado aqui deixaria a requisição pendurada em vez de responder 500.
-    console.error('[api] unexpected error creating business', err)
-    res.status(500).json({ error: 'unexpected error' })
+    // Qualquer outro erro: relança e deixa o error-handling middleware global
+    // (apps/api/src/index.ts, via express-async-errors) responder 500.
+    throw err
   }
 })
 
