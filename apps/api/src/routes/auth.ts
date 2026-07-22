@@ -2,9 +2,16 @@ import { Router } from 'express'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
-import { setSessionCookie } from '../auth/cookies.js'
+import { clearSessionCookie, setSessionCookie } from '../auth/cookies.js'
+import { requireAuth } from '../auth/middleware.js'
 import { hashPassword, isPasswordValid, verifyPassword } from '../auth/password.js'
-import { createSession, generateSessionToken } from '../auth/session.js'
+import {
+  createSession,
+  generateSessionToken,
+  invalidateSession,
+  SESSION_COOKIE_NAME,
+  validateSessionToken,
+} from '../auth/session.js'
 
 export const authRouter = Router()
 
@@ -80,4 +87,24 @@ authRouter.post('/login', async (req, res) => {
   setSessionCookie(res, token, session.expiresAt)
 
   res.status(200).json({ user: { id: user.id, email: user.email } })
+})
+
+// Restaura sessão no reload do browser (apps/web não tem outra forma de saber se o
+// cookie já existente ainda é válido).
+authRouter.get('/me', requireAuth, (req, res) => {
+  res.status(200).json({ user: req.user })
+})
+
+// De propósito sem requireAuth: precisa funcionar mesmo com cookie ausente/expirado
+// (idempotente), inclusive pra testar múltiplos usuários manualmente sem travar.
+authRouter.post('/logout', async (req, res) => {
+  const token: unknown = req.cookies?.[SESSION_COOKIE_NAME]
+  if (typeof token === 'string' && token !== '') {
+    const { session } = await validateSessionToken(token)
+    if (session) {
+      await invalidateSession(session.id)
+    }
+  }
+  clearSessionCookie(res)
+  res.status(204).send()
 })

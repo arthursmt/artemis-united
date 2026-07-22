@@ -5,3 +5,5 @@ export interface HealthStatus {
   status: 'ok'
   service: string
 }
+
+export * from './sectors.js'

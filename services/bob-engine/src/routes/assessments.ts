@@ -1,10 +1,56 @@
 import { Router } from 'express'
+import { desc, eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { assessments } from '../db/schema.js'
 import { runAssessment, type MonthlyFinancials } from '../domain/assessment.js'
 import { captureAssessmentAnomaly } from '../lib/observability.js'
 
 export const assessmentsRouter = Router()
+
+// Nota: se GET /:id (rascunho em docs/architecture.md §1.1) for adicionado no futuro,
+// precisa ser registrado DEPOIS de /latest — senão /latest é engolido como id="latest".
+assessmentsRouter.get('/latest', async (req, res) => {
+  const businessId = typeof req.query.businessId === 'string' ? req.query.businessId : ''
+  if (businessId === '') {
+    res.status(400).json({ error: 'businessId query param is required' })
+    return
+  }
+
+  const [row] = await db
+    .select()
+    .from(assessments)
+    .where(eq(assessments.businessId, businessId))
+    .orderBy(desc(assessments.createdAt))
+    .limit(1)
+
+  if (!row) {
+    res.status(404).json({ error: 'no assessment found for this business' })
+    return
+  }
+
+  // noi/dscrTarget/monthlyNewDebtCapacity não são colunas persistidas (Gap 1, decisão
+  // fechada) — recalculados aqui a partir do inputSnapshot salvo, via a mesma função
+  // pura e determinística usada no POST.
+  const result = runAssessment(row.sectorSegment, row.inputSnapshot as MonthlyFinancials)
+
+  res.status(200).json({
+    id: row.id,
+    businessId: row.businessId,
+    sectorSegment: row.sectorSegment,
+    status: row.status,
+    currency: row.currency,
+    requestedAmount: row.requestedAmount,
+    recommendedAmount: row.recommendedAmount,
+    confidenceLevel: row.confidenceLevel,
+    score: row.score,
+    exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
+    marginSanityTriggered: result.marginSanityTriggered,
+    sectorFound: result.sectorFound,
+    noi: result.noi,
+    dscrTarget: result.dscrTarget,
+    monthlyNewDebtCapacity: result.monthlyNewDebtCapacity,
+  })
+})
 
 interface AssessmentRequestBody {
   businessId?: unknown

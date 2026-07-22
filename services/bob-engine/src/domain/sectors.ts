@@ -7,11 +7,13 @@
 // classificação de risco (revisada) já trata full-service e quick-service como
 // itens distintos.
 
+import type { SectorSegment } from '@artemis-united/shared-types'
+
 export type SectorRiskTier = 'alto' | 'padrao'
 export type SectorConfidenceTier = 'forte' | 'padrao' | 'fraca'
 
 export interface SectorProfile {
-  slug: string
+  slug: SectorSegment
   label: string
   riskTier: SectorRiskTier
   confidenceTier: SectorConfidenceTier
@@ -124,11 +126,13 @@ export const SECTORS: readonly SectorProfile[] = [
   },
 ] as const
 
-const SECTORS_BY_SLUG = new Map(SECTORS.map((sector) => [sector.slug, sector]))
+const SECTORS_BY_SLUG = new Map<string, SectorProfile>(SECTORS.map((sector) => [sector.slug, sector]))
 
 // Setor fora dos 14 documentados (ver Seção 6 do documento de parâmetros) — regra
 // de fallback da Seção 1: calcular sem parâmetro de segmentação, nunca inventar
 // um número. Tratado com o mesmo patamar de confiança da fonte fraca (Seção 7.6).
+// Parâmetro fica string solto (não SectorSegment) de propósito: precisa aceitar
+// qualquer valor vindo do payload da API para ativar esse fallback.
 export function findSector(slug: string): SectorProfile | undefined {
   return SECTORS_BY_SLUG.get(slug)
 }
