@@ -5,6 +5,10 @@ import { assessments } from '../db/schema.js'
 import { runAssessment, type MonthlyFinancials } from '../domain/assessment.js'
 import { captureAssessmentAnomaly } from '../lib/observability.js'
 
+function toNullableNumber(value: string | null): number | null {
+  return value !== null ? Number(value) : null
+}
+
 export const assessmentsRouter = Router()
 
 // Nota: se GET /:id (rascunho em docs/architecture.md §1.1) for adicionado no futuro,
@@ -28,16 +32,12 @@ assessmentsRouter.get('/latest', async (req, res) => {
     return
   }
 
-  // noi/dscrTarget/monthlyNewDebtCapacity são persistidos no POST — lidos aqui, não
-  // recalculados (fecha o Gap 1: uma leitura de um assessment antigo reflete o que
-  // foi calculado quando ele foi criado, mesmo que a fórmula mude depois). Linhas
-  // criadas antes desta migração (nenhuma em produção) terão essas colunas null.
-  //
-  // exceedsMicroloanCeiling/marginSanityTriggered/sectorFound continuam derivados de
-  // runAssessment — não fazem parte do escopo desta correção (não são persistidos),
-  // e são determinísticos a partir do mesmo inputSnapshot já salvo.
-  const result = runAssessment(row.sectorSegment, row.inputSnapshot as MonthlyFinancials)
-
+  // Todos os seis campos derivados (noi/dscrTarget/monthlyNewDebtCapacity/
+  // exceedsMicroloanCeiling/marginSanityTriggered/sectorFound) são persistidos no
+  // POST — lidos aqui, nunca recalculados via runAssessment. Fecha o Gap 1 de vez:
+  // uma leitura de um assessment antigo reflete o que foi calculado quando ele foi
+  // criado, mesmo que a fórmula mude depois. Linhas criadas antes desta migração
+  // (nenhuma em produção) terão essas colunas null.
   res.status(200).json({
     id: row.id,
     businessId: row.businessId,
@@ -48,12 +48,12 @@ assessmentsRouter.get('/latest', async (req, res) => {
     recommendedAmount: row.recommendedAmount,
     confidenceLevel: row.confidenceLevel,
     score: row.score,
-    exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
-    marginSanityTriggered: result.marginSanityTriggered,
-    sectorFound: result.sectorFound,
-    noi: row.noi !== null ? Number(row.noi) : null,
-    dscrTarget: row.dscrTarget !== null ? Number(row.dscrTarget) : null,
-    monthlyNewDebtCapacity: row.monthlyNewDebtCapacity !== null ? Number(row.monthlyNewDebtCapacity) : null,
+    exceedsMicroloanCeiling: row.exceedsMicroloanCeiling,
+    marginSanityTriggered: row.marginSanityTriggered,
+    sectorFound: row.sectorFound,
+    noi: toNullableNumber(row.noi),
+    dscrTarget: toNullableNumber(row.dscrTarget),
+    monthlyNewDebtCapacity: toNullableNumber(row.monthlyNewDebtCapacity),
   })
 })
 
@@ -164,6 +164,9 @@ assessmentsRouter.post('/', async (req, res) => {
       noi: result.noi.toString(),
       dscrTarget: result.dscrTarget.toString(),
       monthlyNewDebtCapacity: result.monthlyNewDebtCapacity.toString(),
+      exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
+      marginSanityTriggered: result.marginSanityTriggered,
+      sectorFound: result.sectorFound,
     })
     .returning()
 

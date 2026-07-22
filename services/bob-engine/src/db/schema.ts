@@ -1,4 +1,4 @@
-import { integer, jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, integer, jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 // Nenhuma modelagem formal foi encontrada no repositório para este dominio;
 // as tabelas abaixo sao uma primeira aproximacao a partir dos nomes pedidos
@@ -55,6 +55,11 @@ export const assessments = bobSchema.table('assessments', {
   noi: numeric('noi'),
   dscrTarget: numeric('dscr_target'),
   monthlyNewDebtCapacity: numeric('monthly_new_debt_capacity'),
+  // Mesma razão das três colunas acima — persistidos no POST, GET /latest só lê,
+  // sem recalcular via runAssessment.
+  exceedsMicroloanCeiling: boolean('exceeds_microloan_ceiling'),
+  marginSanityTriggered: boolean('margin_sanity_triggered'),
+  sectorFound: boolean('sector_found'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
