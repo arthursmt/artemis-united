@@ -21,16 +21,20 @@ export const users = appSchema.table('users', {
 
 export const businesses = appSchema.table('businesses', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // UNIQUE fecha a corrida de duas criações simultâneas no nível do banco — a checagem
+  // 409 na rota (apps/api/src/routes/businesses.ts) continua sendo a validação
+  // primária, isto é o cinto de segurança. Nota: isso trava 1:N por usuário também no
+  // schema, não só na aplicação — suportar múltiplos negócios por usuário no futuro
+  // exigiria uma migração pra derrubar esta constraint.
   ownerUserId: uuid('owner_user_id')
     .notNull()
+    .unique()
     .references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   // Texto livre, não enum — mesmo padrão de bob.assessments.sector_segment. Validação
   // contra os 14 slugs (+ "outro") fica na camada de aplicação, via
   // @artemis-united/shared-types (services/bob-engine/src/domain/sectors.ts importa de lá
-  // também, fonte única). Sem UNIQUE em ownerUserId de propósito: a trava de 1
-  // negócio/usuário do V1 é regra de negócio na rota, não do schema (schema já permite
-  // 1:N para o futuro).
+  // também, fonte única).
   sectorSegment: text('sector_segment').notNull(),
   // Nullable — Etapa 4 não coleta CNPJ/EIN no formulário de criação de negócio.
   taxId: text('tax_id').unique(),

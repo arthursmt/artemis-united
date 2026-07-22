@@ -1,0 +1,1 @@
+ALTER TABLE "app"."businesses" ADD CONSTRAINT "businesses_owner_user_id_unique" UNIQUE("owner_user_id");

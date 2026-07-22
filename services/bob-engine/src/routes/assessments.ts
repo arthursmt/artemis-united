@@ -28,9 +28,14 @@ assessmentsRouter.get('/latest', async (req, res) => {
     return
   }
 
-  // noi/dscrTarget/monthlyNewDebtCapacity não são colunas persistidas (Gap 1, decisão
-  // fechada) — recalculados aqui a partir do inputSnapshot salvo, via a mesma função
-  // pura e determinística usada no POST.
+  // noi/dscrTarget/monthlyNewDebtCapacity são persistidos no POST — lidos aqui, não
+  // recalculados (fecha o Gap 1: uma leitura de um assessment antigo reflete o que
+  // foi calculado quando ele foi criado, mesmo que a fórmula mude depois). Linhas
+  // criadas antes desta migração (nenhuma em produção) terão essas colunas null.
+  //
+  // exceedsMicroloanCeiling/marginSanityTriggered/sectorFound continuam derivados de
+  // runAssessment — não fazem parte do escopo desta correção (não são persistidos),
+  // e são determinísticos a partir do mesmo inputSnapshot já salvo.
   const result = runAssessment(row.sectorSegment, row.inputSnapshot as MonthlyFinancials)
 
   res.status(200).json({
@@ -46,9 +51,9 @@ assessmentsRouter.get('/latest', async (req, res) => {
     exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
     marginSanityTriggered: result.marginSanityTriggered,
     sectorFound: result.sectorFound,
-    noi: result.noi,
-    dscrTarget: result.dscrTarget,
-    monthlyNewDebtCapacity: result.monthlyNewDebtCapacity,
+    noi: row.noi !== null ? Number(row.noi) : null,
+    dscrTarget: row.dscrTarget !== null ? Number(row.dscrTarget) : null,
+    monthlyNewDebtCapacity: row.monthlyNewDebtCapacity !== null ? Number(row.monthlyNewDebtCapacity) : null,
   })
 })
 
@@ -154,6 +159,11 @@ assessmentsRouter.post('/', async (req, res) => {
       // como tratar (ver services/bob-engine/src/domain/assessment.ts). Coluna
       // permanece no schema, só não é escrita aqui.
       confidenceLevel: result.confidenceLevel,
+      // Persistidos aqui pra fechar o Gap 1 de vez — GET /latest lê estas colunas
+      // em vez de recalcular via runAssessment.
+      noi: result.noi.toString(),
+      dscrTarget: result.dscrTarget.toString(),
+      monthlyNewDebtCapacity: result.monthlyNewDebtCapacity.toString(),
     })
     .returning()
 

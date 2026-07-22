@@ -48,6 +48,13 @@ export const assessments = bobSchema.table('assessments', {
   recommendedAmount: numeric('recommended_amount', { precision: 14, scale: 2 }),
   score: numeric('score'),
   confidenceLevel: assessmentConfidenceLevel('confidence_level'),
+  // Persistidos no momento do cálculo (fecha o Gap 1 de vez) — GET /latest só lê
+  // essas colunas, não recalcula via runAssessment. Se a fórmula mudar no futuro,
+  // uma leitura de um assessment antigo continua refletindo o que foi calculado
+  // quando ele foi criado, não o resultado da fórmula atual.
+  noi: numeric('noi'),
+  dscrTarget: numeric('dscr_target'),
+  monthlyNewDebtCapacity: numeric('monthly_new_debt_capacity'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

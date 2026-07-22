@@ -9,6 +9,15 @@ export const businessesRouter = Router()
 
 const VALID_SEGMENTS: ReadonlySet<string> = new Set<string>([...SECTOR_SEGMENTS, OUTRO_SEGMENT])
 
+// Código de unique_violation do Postgres — usado pra reconhecer a corrida coberta
+// pela constraint UNIQUE em businesses.owner_user_id (cinto de segurança da checagem
+// 409 abaixo, ver comentário no schema).
+const POSTGRES_UNIQUE_VIOLATION = '23505'
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === POSTGRES_UNIQUE_VIOLATION
+}
+
 interface CreateBusinessBody {
   name?: unknown
   sectorSegment?: unknown
@@ -43,20 +52,32 @@ businessesRouter.post('/', requireAuth, async (req, res) => {
     return
   }
 
-  // Trava V1: um negócio por usuário (plano mestre §1.2, decisão fechada) — regra de
-  // aplicação, não de schema (schema segue permitindo 1:N para o futuro).
+  // Trava V1: um negócio por usuário (plano mestre §1.2, decisão fechada). Checagem
+  // primária aqui; a constraint UNIQUE em owner_user_id (db/schema.ts) é o cinto de
+  // segurança pra corrida entre duas requisições simultâneas — tratada no catch abaixo.
   const existing = await findBusinessByOwner(userId)
   if (existing) {
     res.status(409).json({ error: 'you already have a business registered' })
     return
   }
 
-  const [business] = await db
-    .insert(businesses)
-    .values({ ownerUserId: userId, name: parsed.name, sectorSegment: parsed.sectorSegment })
-    .returning()
+  try {
+    const [business] = await db
+      .insert(businesses)
+      .values({ ownerUserId: userId, name: parsed.name, sectorSegment: parsed.sectorSegment })
+      .returning()
 
-  res.status(201).json({ business })
+    res.status(201).json({ business })
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res.status(409).json({ error: 'you already have a business registered' })
+      return
+    }
+    // Express 4 não captura rejeições de handler async sozinho — sem isto, um erro
+    // inesperado aqui deixaria a requisição pendurada em vez de responder 500.
+    console.error('[api] unexpected error creating business', err)
+    res.status(500).json({ error: 'unexpected error' })
+  }
 })
 
 businessesRouter.get('/me', requireAuth, async (req, res) => {
