@@ -8,3 +8,21 @@ export function createBusiness(name: string, sectorSegment: string): Promise<{ b
 export function getMyBusiness(): Promise<{ business: Business } | undefined> {
   return apiFetch('/businesses/me')
 }
+
+export interface BusinessDetailsInput {
+  addressLine1: string
+  addressLine2: string | null
+  city: string
+  state: string
+  zipCode: string
+  yearsInBusiness: number
+  yearsOfIndustryExperience: number
+  phone: string | null
+  numberOfEmployees: number
+}
+
+export function updateBusinessDetails(
+  input: BusinessDetailsInput,
+): Promise<{ business: Business } | undefined> {
+  return apiFetch('/businesses/me', { method: 'PUT', body: JSON.stringify(input) })
+}

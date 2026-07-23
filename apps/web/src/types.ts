@@ -3,12 +3,42 @@ export interface User {
   email: string
 }
 
+export type MaritalStatus = 'single' | 'married' | 'divorced' | 'widowed' | 'separated'
+
+export interface CustomerProfile {
+  id: string
+  userId: string
+  dateOfBirth: string
+  addressLine1: string
+  addressLine2: string | null
+  city: string
+  state: string
+  zipCode: string
+  maritalStatus: MaritalStatus
+  hasChildren: boolean
+  householdSize: number | null
+  alternatePhone: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Business {
   id: string
   ownerUserId: string
   name: string
   sectorSegment: string
   taxId: string | null
+  // Preenchidos no segundo passo do onboarding de negócio (Etapa 5, seção 4.4)
+  // — null até o usuário passar por PUT /v1/businesses/me.
+  addressLine1: string | null
+  addressLine2: string | null
+  city: string | null
+  state: string | null
+  zipCode: string | null
+  yearsInBusiness: number | null
+  yearsOfIndustryExperience: number | null
+  phone: string | null
+  numberOfEmployees: number | null
   createdAt: string
   updatedAt: string
 }
