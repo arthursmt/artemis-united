@@ -225,6 +225,53 @@ authRouter.post('/reset-password', async (req, res) => {
   res.status(200).json({ user })
 })
 
+// Tarefa 8 (Configurações — Segurança): troca de senha exigindo a senha
+// atual — diferente do reset (tarefa 3), que não exige nada além do token de
+// email porque o usuário já provou não ter acesso à conta.
+authRouter.post('/change-password', requireAuth, async (req, res) => {
+  const userId = req.user?.id
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' })
+    return
+  }
+
+  const body = req.body as { currentPassword?: unknown; newPassword?: unknown }
+  if (typeof body?.currentPassword !== 'string' || body.currentPassword === '') {
+    res.status(400).json({ error: 'currentPassword is required' })
+    return
+  }
+  if (typeof body.newPassword !== 'string' || !isPasswordValid(body.newPassword)) {
+    res.status(400).json({
+      error:
+        'password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit, and a special character',
+    })
+    return
+  }
+
+  const [user] = await db
+    .select({ id: users.id, passwordHash: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, userId))
+
+  if (!user || !(await verifyPassword(user.passwordHash, body.currentPassword))) {
+    res.status(401).json({ error: 'current password is incorrect' })
+    return
+  }
+
+  const passwordHash = await hashPassword(body.newPassword)
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId))
+
+  // Derruba qualquer sessão existente (inclusive outros dispositivos) e loga
+  // de novo com uma sessão nova — mesmo padrão do reset de senha (tarefa 3),
+  // pra não deixar o dispositivo atual deslogado no meio da própria troca.
+  await invalidateAllUserSessions(userId)
+  const sessionToken = generateSessionToken()
+  const session = await createSession(sessionToken, userId)
+  setSessionCookie(res, sessionToken, session.expiresAt)
+
+  res.status(200).json({ message: 'password changed' })
+})
+
 // Restaura sessão no reload do browser (apps/web não tem outra forma de saber se o
 // cookie já existente ainda é válido).
 authRouter.get('/me', requireAuth, (req, res) => {

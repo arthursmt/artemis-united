@@ -28,6 +28,16 @@ export function resetPassword(token: string, newPassword: string): Promise<{ use
   return apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) })
 }
 
+export function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ message: string } | undefined> {
+  return apiFetch('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+}
+
 export function me(): Promise<{ user: User } | undefined> {
   return apiFetch('/auth/me')
 }

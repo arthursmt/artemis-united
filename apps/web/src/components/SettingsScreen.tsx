@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { logout } from '../api/auth'
 import { BusinessDataSettings } from './BusinessDataSettings'
 import { PersonalDataSettings } from './PersonalDataSettings'
+import { SecuritySettings } from './SecuritySettings'
 
 type SettingsTab = 'personal' | 'business' | 'security'
 
@@ -61,7 +62,7 @@ export function SettingsScreen({
 
       {tab === 'personal' && <PersonalDataSettings />}
       {tab === 'business' && <BusinessDataSettings />}
-      {tab === 'security' && <p>Em construção — chega em breve.</p>}
+      {tab === 'security' && <SecuritySettings />}
     </div>
   )
 }

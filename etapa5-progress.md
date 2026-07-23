@@ -66,13 +66,13 @@ dada diretamente.
 | # | Tarefa | Status |
 |---|---|---|
 | 1 | Criar este arquivo de progresso | ✅ feito |
-| 2 | Cadastro completo — checkbox de termos + verificação de email (stub) | pendente |
-| 3 | Esqueci minha senha — reset via token por email (stub) | pendente |
-| 4 | Onboarding-cliente completo (DoB, endereço, estado civil, filhos, pessoas na casa, telefone alt.) | pendente |
-| 5 | Onboarding-negócio completo (endereço, anos de negócio/experiência, telefone, nº empregados) | pendente |
-| 6 | Configurações — Dados Pessoais (CRUD sobre tarefa 4) | pendente |
-| 7 | Configurações — Dados do Negócio (CRUD sobre tarefa 5, sem criar 2º negócio) | pendente |
-| 8 | Configurações — Segurança (troca de senha; 2FA só se sobrar tempo) | pendente |
+| 2 | Cadastro completo — checkbox de termos + verificação de email (stub) | ✅ feito |
+| 3 | Esqueci minha senha — reset via token por email (stub) | ✅ feito |
+| 4 | Onboarding-cliente completo (DoB, endereço, estado civil, filhos, pessoas na casa, telefone alt.) | ✅ feito |
+| 5 | Onboarding-negócio completo (endereço, anos de negócio/experiência, telefone, nº empregados) | ✅ feito |
+| 6 | Configurações — Dados Pessoais (CRUD sobre tarefa 4) | ✅ feito |
+| 7 | Configurações — Dados do Negócio (CRUD sobre tarefa 5, sem criar 2º negócio) | ✅ feito |
+| 8 | Configurações — Segurança (troca de senha; 2FA só se sobrar tempo) | ⚠️ troca de senha feita, 2FA pendente (ver log) |
 | 9 | Configurações — Logout (verificar se já existe antes de duplicar) | pendente |
 | 10 | Chat com BoB (menor prioridade — só se sobrar tempo/contexto) | pendente |
 
@@ -95,7 +95,8 @@ main
              └─ feat/etapa5-onboarding-cliente     (tarefa 4)
                  └─ feat/etapa5-onboarding-negocio   (tarefa 5)
                      └─ feat/etapa5-settings-pessoais  (tarefa 6)
-                         └─ feat/etapa5-settings-negocio (tarefa 7, em andamento)
+                         └─ feat/etapa5-settings-negocio (tarefa 7)
+                             └─ feat/etapa5-settings-seguranca (tarefa 8, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -319,3 +320,41 @@ Testado com curl real: criar negócio → primeira edição (PUT) → segunda
 edição real (PUT de novo, mudando cidade/nº empregados/telefone) → 200,
 mesmo `id`, dados novos refletidos corretamente. Dado de teste limpo do
 banco ao final.
+
+### Tarefa 8 — Configurações: Segurança
+
+Status: ✅ concluída (troca de senha) / ⚠️ **2FA não implementado — pendência
+documentada abaixo, decisão explícita do pedido original ("prioridade
+menor... deixe como sub-item documentado como incompleto se o tempo/contexto
+apertar")**. Branch `feat/etapa5-settings-seguranca` (empilhada sobre a
+tarefa 7), commit feito e push feito.
+
+**Troca de senha — implementado:**
+- `POST /v1/auth/change-password` (requireAuth): exige `currentPassword`
+  correta (401 se errada) + `newPassword` válida pela mesma política de
+  sempre (400 se fraca). Diferença chave vs. o reset da tarefa 3: change
+  exige prova de posse da senha atual (usuário já autenticado), reset exige
+  só o token de email (usuário provou não ter mais a senha).
+- Depois de trocar: derruba todas as sessões existentes
+  (`invalidateAllUserSessions`, reusada da tarefa 3) e cria uma sessão nova
+  pro dispositivo atual — mesmo padrão do reset, evita deslogar o usuário no
+  meio da própria troca. Testado explicitamente: sessão atual continua
+  funcionando (`GET /me`) logo depois da troca.
+- Frontend: `SecuritySettings.tsx` na aba "Segurança" — formulário
+  senha-atual + nova-senha.
+
+**2FA — não implementado, pendência real:**
+- Nem TOTP nem código por email foram construídos nesta sessão.
+- Não é uma omissão silenciosa: a tela `SecuritySettings.tsx` tem uma seção
+  visível "Autenticação em duas etapas (2FA)" com texto explícito dizendo que
+  não foi implementado e apontando pra este arquivo.
+- Não decidi arbitrariamente qual dos dois (TOTP vs código por email)
+  implementar primeiro quando isso for retomado — `docs/architecture.md`
+  §2 lista os dois como igualmente válidos ("2FA opcional: código por email
+  ou app autenticador (TOTP)"), então essa escolha fica pro fundador, não pra
+  mim decidir sozinho ao retomar.
+
+Testado com curl real (troca de senha): senha atual errada (401), nova senha
+fraca (400), troca válida (200), sessão atual continua ativa depois da troca
+(`GET /me`), login com senha antiga falha (401), login com senha nova
+funciona (200). Dado de teste limpo do banco ao final.
