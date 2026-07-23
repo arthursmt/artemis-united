@@ -19,10 +19,12 @@ function formatMoney(value: string | number | null): string {
 export function Dashboard({
   business,
   onOpenDreForm,
+  onOpenSettings,
   onLoggedOut,
 }: {
   business: Business
   onOpenDreForm: () => void
+  onOpenSettings: () => void
   onLoggedOut: () => void
 }) {
   const [assessment, setAssessment] = useState<AssessmentView | null>(null)
@@ -55,15 +57,21 @@ export function Dashboard({
     <div>
       <div className="top-bar">
         <h1>{business.name}</h1>
-        <button
-          className="link"
-          type="button"
-          onClick={() => {
-            void logout().then(onLoggedOut)
-          }}
-        >
-          Sair
-        </button>
+        <div>
+          <button className="link" type="button" onClick={onOpenSettings}>
+            Configurações
+          </button>
+          {' · '}
+          <button
+            className="link"
+            type="button"
+            onClick={() => {
+              void logout().then(onLoggedOut)
+            }}
+          >
+            Sair
+          </button>
+        </div>
       </div>
 
       {loading && <p>Carregando...</p>}

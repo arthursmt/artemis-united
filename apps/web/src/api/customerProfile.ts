@@ -23,3 +23,9 @@ export function createCustomerProfile(
 export function getMyCustomerProfile(): Promise<{ profile: CustomerProfile } | undefined> {
   return apiFetch('/customer-profile/me')
 }
+
+export function updateCustomerProfile(
+  input: CustomerProfileInput,
+): Promise<{ profile: CustomerProfile } | undefined> {
+  return apiFetch('/customer-profile/me', { method: 'PUT', body: JSON.stringify(input) })
+}

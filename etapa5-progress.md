@@ -93,7 +93,8 @@ main
      └─ feat/etapa5-signup-email-verification  (tarefa 2)
          └─ feat/etapa5-forgot-password          (tarefa 3)
              └─ feat/etapa5-onboarding-cliente     (tarefa 4)
-                 └─ feat/etapa5-onboarding-negocio   (tarefa 5, em andamento)
+                 └─ feat/etapa5-onboarding-negocio   (tarefa 5)
+                     └─ feat/etapa5-settings-pessoais  (tarefa 6, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -269,4 +270,31 @@ Testado com curl real:
 - `PUT /me` com `state` inválido → 400
 - `PUT /me` válido, sem telefone → 200, `phone: null` salvo corretamente
 - `PUT /me` sem negócio existente ainda (usuário diferente) → 404
+- dado de teste limpo do banco ao final
+
+### Tarefa 6 — Configurações: Dados Pessoais
+
+Status: ✅ concluída. Branch `feat/etapa5-settings-pessoais` (empilhada sobre
+a tarefa 5), commit feito e push feito.
+
+Decisões de implementação:
+- `PUT /v1/customer-profile/me` adicionado (mesma validação do POST da
+  tarefa 4, reusada via `parseCustomerProfile`) — 404 se o perfil ainda não
+  existir (edição, não criação).
+- Criei o shell `SettingsScreen.tsx` com 3 abas (Dados Pessoais/Dados do
+  Negócio/Segurança) + botão de Sair, já pensando nas tarefas 7 e 8 que vêm a
+  seguir — as abas "Dados do Negócio" e "Segurança" mostram um placeholder
+  "em construção" por enquanto, viram reais nas próprias tarefas 7/8 (só
+  troco o conteúdo da aba, não a estrutura do shell).
+- `PersonalDataSettings.tsx`: busca o perfil atual no mount, formulário
+  pré-preenchido, salva via `PUT`. Mesmos campos/validação do onboarding
+  (tarefa 4), reaproveitando os componentes de UI (não o formulário em si,
+  que tem lógica de pré-preenchimento diferente do de criação).
+- `Dashboard.tsx` ganha um link "Configurações" ao lado de "Sair" no topo —
+  único ponto de entrada adicionado ao fluxo existente.
+
+Testado com curl real:
+- `PUT /me` sem perfil existente → 404
+- criar perfil, depois `PUT /me` mudando cidade/estado civil/pessoas na casa
+  → 200, dados realmente atualizados (confirmado no corpo da resposta)
 - dado de teste limpo do banco ao final

@@ -11,6 +11,7 @@ import { Dashboard } from './components/Dashboard'
 import { DreForm } from './components/DreForm'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
 import { ResetPasswordForm } from './components/ResetPasswordForm'
+import { SettingsScreen } from './components/SettingsScreen'
 import { VerifyEmailPending } from './components/VerifyEmailPending'
 import type { Business, User } from './types'
 import './App.css'
@@ -26,6 +27,7 @@ type View =
   | { name: 'business-onboarding' }
   | { name: 'business-details-onboarding' }
   | { name: 'dashboard' }
+  | { name: 'settings' }
   | { name: 'dre-form' }
 
 function App() {
@@ -197,6 +199,19 @@ function App() {
     return <DreForm onSubmitted={() => setView({ name: 'dashboard' })} />
   }
 
+  if (view.name === 'settings') {
+    return (
+      <SettingsScreen
+        onBack={() => setView({ name: 'dashboard' })}
+        onLoggedOut={() => {
+          setUser(null)
+          setBusiness(null)
+          setView({ name: 'auth' })
+        }}
+      />
+    )
+  }
+
   if (!business) {
     // Não deveria acontecer — dashboard só é alcançável com negócio já carregado.
     return <p>Algo deu errado. Recarregue a página.</p>
@@ -206,6 +221,7 @@ function App() {
     <Dashboard
       business={business}
       onOpenDreForm={() => setView({ name: 'dre-form' })}
+      onOpenSettings={() => setView({ name: 'settings' })}
       onLoggedOut={() => {
         setUser(null)
         setBusiness(null)

@@ -119,3 +119,32 @@ button.link {
   align-items: center;
   margin-bottom: 24px;
 }
+
+.back-row {
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.tab {
+  font: inherit;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 4px;
+  margin-right: 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tab.active {
+  color: var(--text-h);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}

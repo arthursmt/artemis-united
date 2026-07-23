@@ -140,3 +140,45 @@ customerProfileRouter.get('/me', requireAuth, async (req, res) => {
   }
   res.status(200).json({ profile })
 })
+
+// Tarefa 6 (Configurações — Dados Pessoais): edição do perfil já criado no
+// onboarding (tarefa 4). Não cria — 404 se ainda não existir.
+customerProfileRouter.put('/me', requireAuth, async (req, res) => {
+  const userId = req.user?.id
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' })
+    return
+  }
+
+  const existing = await findProfileByUser(userId)
+  if (!existing) {
+    res.status(404).json({ error: 'no customer profile found — create one first' })
+    return
+  }
+
+  const parsed = parseCustomerProfile(req.body)
+  if (typeof parsed === 'string') {
+    res.status(400).json({ error: parsed })
+    return
+  }
+
+  const [profile] = await db
+    .update(customerProfiles)
+    .set({
+      dateOfBirth: parsed.dateOfBirth,
+      addressLine1: parsed.addressLine1,
+      addressLine2: parsed.addressLine2,
+      city: parsed.city,
+      state: parsed.state,
+      zipCode: parsed.zipCode,
+      maritalStatus: parsed.maritalStatus as 'single' | 'married' | 'divorced' | 'widowed' | 'separated',
+      hasChildren: parsed.hasChildren,
+      householdSize: parsed.householdSize,
+      alternatePhone: parsed.alternatePhone,
+      updatedAt: new Date(),
+    })
+    .where(eq(customerProfiles.userId, userId))
+    .returning()
+
+  res.status(200).json({ profile })
+})
