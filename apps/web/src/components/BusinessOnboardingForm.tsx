@@ -4,7 +4,17 @@ import { createBusiness } from '../api/businesses'
 import { ApiError } from '../api/client'
 import type { Business } from '../types'
 
-export function BusinessOnboardingForm({ onCreated }: { onCreated: (business: Business) => void }) {
+export function BusinessOnboardingForm({
+  onCreated,
+  onAlreadyExists,
+}: {
+  onCreated: (business: Business) => void
+  // 409 de POST /businesses significa "o que você queria já existe" — não é
+  // um erro terminal, é sinal pra seguir em frente com o negócio que já tem
+  // (ver App.tsx: reusa routeAfterAuth() pra decidir a tela certa a partir do
+  // estado real do negócio existente, em vez de travar aqui mostrando erro).
+  onAlreadyExists: () => void
+}) {
   const [name, setName] = useState('')
   const [sectorSegment, setSectorSegment] = useState(SECTOR_SEGMENT_OPTIONS[0].slug as string)
   const [error, setError] = useState<string | null>(null)
@@ -20,6 +30,10 @@ export function BusinessOnboardingForm({ onCreated }: { onCreated: (business: Bu
         onCreated(result.business)
       }
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        onAlreadyExists()
+        return
+      }
       setError(err instanceof ApiError ? err.message : 'Algo deu errado. Tente de novo.')
     } finally {
       setSubmitting(false)

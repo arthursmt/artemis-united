@@ -27,6 +27,7 @@ type View =
   | { name: 'customer-onboarding' }
   | { name: 'business-onboarding' }
   | { name: 'business-details-onboarding' }
+  | { name: 'route-error'; message: string }
   | { name: 'dashboard' }
   | { name: 'settings' }
   | { name: 'chat' }
@@ -42,13 +43,45 @@ function App() {
   // entre onboarding-cliente, onboarding-negócio ou dashboard, nessa ordem
   // (perfil pessoal antes de negócio).
   async function routeAfterAuth() {
-    const profileResult = await getMyCustomerProfile().catch(() => undefined)
+    // 404 é o único caso que legitimamente significa "ainda não existe, manda
+    // pro onboarding" — qualquer outro erro (rede, 500, etc.) NÃO pode ser
+    // tratado da mesma forma, senão um usuário que já tem perfil/negócio
+    // acaba sendo mandado de volta pro onboarding por causa de uma falha
+    // transitória, e a segunda tentativa de criar esbarra num 409 sem
+    // caminho pra frente (bug real encontrado em teste manual).
+    let profileResult: Awaited<ReturnType<typeof getMyCustomerProfile>>
+    try {
+      profileResult = await getMyCustomerProfile()
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setView({ name: 'customer-onboarding' })
+        return
+      }
+      setView({
+        name: 'route-error',
+        message: err instanceof ApiError ? err.message : 'Não foi possível carregar seus dados. Tente novamente.',
+      })
+      return
+    }
     if (!profileResult) {
       setView({ name: 'customer-onboarding' })
       return
     }
 
-    const businessResult = await getMyBusiness().catch(() => undefined)
+    let businessResult: Awaited<ReturnType<typeof getMyBusiness>>
+    try {
+      businessResult = await getMyBusiness()
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setView({ name: 'business-onboarding' })
+        return
+      }
+      setView({
+        name: 'route-error',
+        message: err instanceof ApiError ? err.message : 'Não foi possível carregar seu negócio. Tente novamente.',
+      })
+      return
+    }
     if (!businessResult) {
       setView({ name: 'business-onboarding' })
       return
@@ -172,7 +205,11 @@ function App() {
   }
 
   if (view.name === 'customer-onboarding') {
-    return <CustomerOnboardingForm onCreated={() => setView({ name: 'business-onboarding' })} />
+    // Reusa routeAfterAuth() em vez de assumir "próxima tela = business-onboarding":
+    // a decisão de qual tela vem a seguir precisa ser sempre derivada do estado
+    // real do servidor (perfil recém-criado pode não ser a única coisa que
+    // mudou), não de uma suposição fixa de "próximo passo do fluxo linear".
+    return <CustomerOnboardingForm onCreated={() => void routeAfterAuth()} />
   }
 
   if (view.name === 'business-onboarding') {
@@ -182,6 +219,11 @@ function App() {
           setBusiness(createdBusiness)
           setView({ name: 'business-details-onboarding' })
         }}
+        // 409 aqui significa "o negócio que você tentou criar já existe" — não é
+        // um erro terminal. Reusa routeAfterAuth() pra decidir a tela certa a
+        // partir do negócio que já existe de verdade (pode já ter passado do
+        // segundo passo do onboarding, indo direto pro dashboard).
+        onAlreadyExists={() => void routeAfterAuth()}
       />
     )
   }
@@ -194,6 +236,18 @@ function App() {
           setView({ name: 'dre-form' })
         }}
       />
+    )
+  }
+
+  if (view.name === 'route-error') {
+    return (
+      <div>
+        <h1>Não foi possível carregar sua conta</h1>
+        <p className="error">{view.message}</p>
+        <button className="primary" type="button" onClick={() => void routeAfterAuth()}>
+          Tentar de novo
+        </button>
+      </div>
     )
   }
 
