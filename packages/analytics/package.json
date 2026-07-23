@@ -18,6 +18,7 @@
     "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
+    "@artemis-united/shared-types": "*",
     "posthog-js": "^1.194.4"
   },
   "devDependencies": {
