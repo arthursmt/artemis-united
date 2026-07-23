@@ -94,7 +94,8 @@ main
          └─ feat/etapa5-forgot-password          (tarefa 3)
              └─ feat/etapa5-onboarding-cliente     (tarefa 4)
                  └─ feat/etapa5-onboarding-negocio   (tarefa 5)
-                     └─ feat/etapa5-settings-pessoais  (tarefa 6, em andamento)
+                     └─ feat/etapa5-settings-pessoais  (tarefa 6)
+                         └─ feat/etapa5-settings-negocio (tarefa 7, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -298,3 +299,23 @@ Testado com curl real:
 - criar perfil, depois `PUT /me` mudando cidade/estado civil/pessoas na casa
   → 200, dados realmente atualizados (confirmado no corpo da resposta)
 - dado de teste limpo do banco ao final
+
+### Tarefa 7 — Configurações: Dados do Negócio
+
+Status: ✅ concluída. Branch `feat/etapa5-settings-negocio` (empilhada sobre
+a tarefa 6), commit feito e push feito.
+
+**Sem mudança de backend** — `PUT /v1/businesses/me` já existia da tarefa 5 e
+já atendia exatamente ao pedido ("CRUD sobre os dados da tarefa 5"). Só
+construí a tela: `BusinessDataSettings.tsx` (busca o negócio atual, formulário
+pré-preenchido, salva via o mesmo `PUT`), ligada na aba "Dados do Negócio" do
+`SettingsScreen.tsx` (antes placeholder, criado na tarefa 6).
+
+Trava de 1-negócio-por-usuário confirmada intacta por construção: `PUT /me`
+só edita o negócio já existente do usuário (não passa por nenhum caminho de
+criação) — mesmo `id` antes/depois da edição, testado explicitamente.
+
+Testado com curl real: criar negócio → primeira edição (PUT) → segunda
+edição real (PUT de novo, mudando cidade/nº empregados/telefone) → 200,
+mesmo `id`, dados novos refletidos corretamente. Dado de teste limpo do
+banco ao final.
