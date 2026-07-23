@@ -44,12 +44,23 @@ function parseCredentials(body: unknown): { email: string; password: string } | 
 
 interface SignupBody extends Credentials {
   acceptedTerms?: unknown
+  confirmPassword?: unknown
 }
 
 authRouter.post('/signup', async (req, res) => {
   const credentials = parseCredentials(req.body)
   if (!credentials) {
     res.status(400).json({ error: 'email and password are required' })
+    return
+  }
+
+  // Confirmação de senha (plano mestre §4.1: "Senha, Repetir senha") —
+  // checagem no servidor, não só no client (o front já bloqueia o submit se
+  // não bater, mas a API não confia só nisso, mesmo padrão do acceptedTerms
+  // logo abaixo).
+  const confirmPassword = (req.body as SignupBody)?.confirmPassword
+  if (typeof confirmPassword !== 'string' || confirmPassword !== credentials.password) {
+    res.status(400).json({ error: 'password and confirmation do not match' })
     return
   }
 

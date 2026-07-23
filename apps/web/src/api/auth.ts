@@ -4,11 +4,12 @@ import type { User } from '../types'
 export function signup(
   email: string,
   password: string,
+  confirmPassword: string,
   acceptedTerms: boolean,
 ): Promise<{ user: User; verificationRequired: true } | undefined> {
   return apiFetch('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify({ email, password, acceptedTerms }),
+    body: JSON.stringify({ email, password, confirmPassword, acceptedTerms }),
   })
 }
 
