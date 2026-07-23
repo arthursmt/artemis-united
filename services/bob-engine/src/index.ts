@@ -1,6 +1,7 @@
 import './lib/observability.js'
 import express from 'express'
 import type { HealthStatus } from '@artemis-united/shared-types'
+import { requireInternalSecret } from './auth/internalSecret.js'
 import { assessmentsRouter } from './routes/assessments.js'
 
 // This service is intentionally isolated: it must never import from
@@ -16,10 +17,10 @@ app.get('/health', (_req, res) => {
   res.json(body)
 })
 
-// Etapa 3 do walking skeleton: sem autenticação por enquanto — bate direto no
-// bob-engine, sem passar por apps/api. Camada de auth entra quando apps/api
-// assumir o proxy (ver docs/architecture.md, seção 1.4).
-app.use('/v1/assessments', assessmentsRouter)
+// Etapa 4: auth interna api -> bob-engine (docs/architecture.md §1.4, decisão #8) —
+// shared secret no header X-Internal-Secret, sem mTLS neste estágio. apps/web nunca
+// bate aqui direto, só apps/api conhece o segredo.
+app.use('/v1/assessments', requireInternalSecret, assessmentsRouter)
 
 app.listen(port, () => {
   console.log(`[bob-engine] listening on port ${port}`)

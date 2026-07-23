@@ -22,6 +22,20 @@
       "when": 1784585357926,
       "tag": "0002_sticky_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784670122113,
+      "tag": "0003_living_boomerang",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784671695055,
+      "tag": "0004_brave_triton",
+      "breakpoints": true
     }
   ]
 }

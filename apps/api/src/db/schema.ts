@@ -1,4 +1,4 @@
-import { date, jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 // Nenhuma modelagem formal foi encontrada no repositório para este dominio;
 // as tabelas abaixo sao uma primeira aproximacao a partir dos nomes pedidos
@@ -21,25 +21,41 @@ export const users = appSchema.table('users', {
 
 export const businesses = appSchema.table('businesses', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // UNIQUE fecha a corrida de duas criações simultâneas no nível do banco — a checagem
+  // 409 na rota (apps/api/src/routes/businesses.ts) continua sendo a validação
+  // primária, isto é o cinto de segurança. Nota: isso trava 1:N por usuário também no
+  // schema, não só na aplicação — suportar múltiplos negócios por usuário no futuro
+  // exigiria uma migração pra derrubar esta constraint.
   ownerUserId: uuid('owner_user_id')
     .notNull()
+    .unique()
     .references(() => users.id, { onDelete: 'cascade' }),
-  legalName: text('legal_name').notNull(),
-  taxId: text('tax_id').notNull().unique(),
+  name: text('name').notNull(),
+  // Texto livre, não enum — mesmo padrão de bob.assessments.sector_segment. Validação
+  // contra os 14 slugs (+ "outro") fica na camada de aplicação, via
+  // @artemis-united/shared-types (services/bob-engine/src/domain/sectors.ts importa de lá
+  // também, fonte única).
+  sectorSegment: text('sector_segment').notNull(),
+  // Nullable — Etapa 4 não coleta CNPJ/EIN no formulário de criação de negócio.
+  taxId: text('tax_id').unique(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Snapshot mensal versionado do DRE mínimo (nunca sobrescrever — cada submissão gera
+// uma linha nova). Colunas mapeiam 1:1 para MonthlyFinancials
+// (services/bob-engine/src/domain/assessment.ts) — mesmo formato enviado ao bob-engine.
 export const financialStatements = appSchema.table('financial_statements', {
   id: uuid('id').primaryKey().defaultRandom(),
   businessId: uuid('business_id')
     .notNull()
     .references(() => businesses.id, { onDelete: 'cascade' }),
-  periodStart: date('period_start').notNull(),
-  periodEnd: date('period_end').notNull(),
   revenue: numeric('revenue', { precision: 14, scale: 2 }).notNull(),
-  expenses: numeric('expenses', { precision: 14, scale: 2 }).notNull(),
-  rawData: jsonb('raw_data'),
+  directCosts: numeric('direct_costs', { precision: 14, scale: 2 }).notNull(),
+  operatingExpenses: numeric('operating_expenses', { precision: 14, scale: 2 }).notNull(),
+  currentDebtService: numeric('current_debt_service', { precision: 14, scale: 2 }).notNull(),
+  personalExtraIncome: numeric('personal_extra_income', { precision: 14, scale: 2 }).notNull(),
+  personalExpenses: numeric('personal_expenses', { precision: 14, scale: 2 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
