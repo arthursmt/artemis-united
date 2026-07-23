@@ -73,7 +73,7 @@ dada diretamente.
 | 6 | Configurações — Dados Pessoais (CRUD sobre tarefa 4) | ✅ feito |
 | 7 | Configurações — Dados do Negócio (CRUD sobre tarefa 5, sem criar 2º negócio) | ✅ feito |
 | 8 | Configurações — Segurança (troca de senha; 2FA só se sobrar tempo) | ⚠️ troca de senha feita, 2FA pendente (ver log) |
-| 9 | Configurações — Logout (verificar se já existe antes de duplicar) | pendente |
+| 9 | Configurações — Logout (verificar se já existe antes de duplicar) | ✅ feito (verificação, sem código novo) |
 | 10 | Chat com BoB (menor prioridade — só se sobrar tempo/contexto) | pendente |
 
 ## Decisão de estrutura de branches
@@ -96,7 +96,8 @@ main
                  └─ feat/etapa5-onboarding-negocio   (tarefa 5)
                      └─ feat/etapa5-settings-pessoais  (tarefa 6)
                          └─ feat/etapa5-settings-negocio (tarefa 7)
-                             └─ feat/etapa5-settings-seguranca (tarefa 8, em andamento)
+                             └─ feat/etapa5-settings-seguranca (tarefa 8)
+                                 └─ feat/etapa5-settings-logout (tarefa 9, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -358,3 +359,25 @@ Testado com curl real (troca de senha): senha atual errada (401), nova senha
 fraca (400), troca válida (200), sessão atual continua ativa depois da troca
 (`GET /me`), login com senha antiga falha (401), login com senha nova
 funciona (200). Dado de teste limpo do banco ao final.
+
+### Tarefa 9 — Configurações: Logout
+
+Status: ✅ concluída — **verificação, sem código novo** (o pedido era
+"confirmar que existe... antes de duplicar", e já existia). Branch
+`feat/etapa5-settings-logout` (empilhada sobre a tarefa 8), só o próprio
+`etapa5-progress.md` muda nesse commit.
+
+O que já existia, desde a Etapa 2/4, sem qualquer alteração nesta tarefa:
+- Botão explícito de "Sair" em `Dashboard.tsx` **e** em `SettingsScreen.tsx`
+  (ambos adicionados nesta sessão, tarefas 4-6, mas reusando o mesmo
+  `logout()` de `api/auth.ts` já existente desde a Etapa 4).
+- `POST /v1/auth/logout` (backend, Etapa 4): lê o cookie de sessão, chama
+  `invalidateSession(session.id)` — **apaga a linha da tabela `sessions` no
+  banco**, não só limpa o cookie no browser.
+
+Testado com curl real, de forma conclusiva: `GET /me` com um cookie válido
+→ 200; `POST /logout` com esse mesmo cookie → 204; `GET /me` **reusando o
+mesmo cookie** (sem logout de novo, sem novo login) → 401. Isso prova que a
+invalidação é no servidor — um cookie clonado/reaproveitado depois do logout
+não funciona mais, o que não seria o caso se o logout só limpasse o cookie
+do lado do cliente. Dado de teste limpo do banco ao final.
