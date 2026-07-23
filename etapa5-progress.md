@@ -76,6 +76,66 @@ dada diretamente.
 | 9 | Configurações — Logout (verificar se já existe antes de duplicar) | pendente |
 | 10 | Chat com BoB (menor prioridade — só se sobrar tempo/contexto) | pendente |
 
+## Decisão de estrutura de branches
+
+As tarefas 2–9 não são logicamente independentes entre si (ex: tarefa 6 é CRUD
+sobre os campos que a tarefa 4 cria; tarefa 7 idem sobre a tarefa 5). Como nunca
+mergeamos em `main` durante a sessão, branchar cada tarefa a partir de `main`
+faria cada uma "esquecer" o schema/rotas das tarefas anteriores — e esse arquivo
+de progresso também some se a branch não vier daqui.
+
+**Decisão: branches empilhadas.** Cada branch nasce da ponta da branch da tarefa
+anterior, não de `main`. Ordem real (atualizado conforme avanço):
+
+```
+main
+ └─ chore/etapa5-progress-file              (tarefa 1)
+     └─ feat/etapa5-signup-email-verification  (tarefa 2, em andamento)
+```
+
+Cada branch continua com commit próprio e push próprio, como pedido. Revisão
+final: o fundador decide se revisa/mergeia em sequência (cada PR contra a
+anterior) ou se prefere que eu rebase tudo numa branch única de Etapa 5 no
+final — não decido isso sozinho, só sinalizo a estrutura real.
+
 ## Log por tarefa
 
-(preenchido conforme cada tarefa é concluída ou bloqueada)
+### Tarefa 2 — Cadastro completo (checkbox de termos + verificação de email)
+
+Status: ✅ concluída. Branch `feat/etapa5-signup-email-verification` (empilhada
+sobre `chore/etapa5-progress-file`), commit feito e push feito.
+
+Testado com curl real (Postgres local + apps/api rodando):
+- signup sem `acceptedTerms` → 400
+- signup com `acceptedTerms: true` → 201, `verificationRequired: true`, **sem**
+  cookie de sessão
+- login antes de verificar → 403
+- `verify-email` com token inválido → 400
+- `verify-email` com token real (extraído do log do stub) → 200 + sessão criada
+  (confirmado via `GET /me`)
+- reuso do mesmo token → 400 (uso único confirmado)
+- login depois de verificar → 200
+- dado de teste limpo do banco ao final
+
+Decisões de implementação (documentadas, não pedidas explicitamente no plano
+mestre ausente, mas necessárias pra fechar o fluxo):
+- `users.termsAcceptedAt` e `users.emailVerifiedAt` — **nullable** no schema
+  (não NOT NULL): linhas de teste da Etapa 4 não têm esses valores, e forçar
+  NOT NULL exigiria um default silencioso (`now()`) que mascararia ausência
+  real de aceite/verificação. A rota de signup sempre grava valor real; null =
+  "nunca aceitou/nunca verificou" pra qualquer lógica futura.
+- Nova tabela `email_verification_tokens` — mesmo padrão de `sessions` (token
+  aleatório ao usuário, só hash SHA-256 no banco), uso único.
+- Signup **não cria sessão** — só após confirmar o email (`POST
+  /v1/auth/verify-email`) a conta ganha sessão. Login de conta não verificada
+  responde 403, não deixa passar.
+- Envio de email é stub: `apps/api/src/lib/emailStub.ts`, loga JSON
+  estruturado com o link/token em vez de enviar de verdade (mesmo padrão do
+  `SENTRY_DSN` vazio).
+- Sem endpoint de "reenviar verificação" — fora de escopo explícito, anotado
+  como possível follow-up, não bloqueia a tarefa.
+- Texto de Termos de Uso/Política de Privacidade: **não fabriquei conteúdo
+  legal real** — checkbox com rótulo genérico ("Li e aceito os Termos de Uso e
+  a Política de Privacidade"), sem link pra documento real (não existe). Isso
+  é uma pendência de conteúdo jurídico real, não uma implementação técnica —
+  registrado, não resolvido.

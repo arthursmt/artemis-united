@@ -15,9 +15,32 @@ export const users = appSchema.table('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  // Nullable de propósito (não NOT NULL): linhas de antes desta coluna existir
+  // (dados de teste da Etapa 4) não têm valor real aqui, e adicionar NOT NULL
+  // nesta migração exigiria um default silencioso que mascararia a ausência real
+  // de aceite. A rota de signup sempre grava um valor real ao criar a conta;
+  // null = aceite nunca registrado, tratado como "não aceitou" por qualquer
+  // lógica futura que precise checar isso.
+  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+  // Nullable = conta ainda não confirmou o email. Ver auth/emailVerification.ts.
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Token de confirmação de email — mesmo padrão de `sessions`: token aleatório
+// entregue ao usuário (via link no email, stub por enquanto — ver
+// lib/emailStub.ts), só o hash SHA-256 fica no banco. Uso único: consumido e
+// apagado na confirmação.
+export const emailVerificationTokens = appSchema.table('email_verification_tokens', {
+  id: text('id').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 
 export const businesses = appSchema.table('businesses', {
   id: uuid('id').primaryKey().defaultRandom(),

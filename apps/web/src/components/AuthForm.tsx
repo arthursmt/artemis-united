@@ -3,10 +3,17 @@ import { login, signup } from '../api/auth'
 import { ApiError } from '../api/client'
 import type { User } from '../types'
 
-export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: User) => void }) {
+export function AuthForm({
+  onAuthenticated,
+  onSignupRequiresVerification,
+}: {
+  onAuthenticated: (user: User) => void
+  onSignupRequiresVerification: (email: string) => void
+}) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -15,9 +22,16 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: User) =>
     setError(null)
     setSubmitting(true)
     try {
-      const result = mode === 'login' ? await login(email, password) : await signup(email, password)
-      if (result) {
-        onAuthenticated(result.user)
+      if (mode === 'login') {
+        const result = await login(email, password)
+        if (result) {
+          onAuthenticated(result.user)
+        }
+      } else {
+        const result = await signup(email, password, acceptedTerms)
+        if (result) {
+          onSignupRequiresVerification(result.user.email)
+        }
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Algo deu errado. Tente de novo.')
@@ -53,6 +67,20 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: User) =>
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </div>
+        {mode === 'signup' && (
+          <div className="field field-checkbox">
+            <label htmlFor="accepted-terms">
+              <input
+                id="accepted-terms"
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+              />
+              Li e aceito os Termos de Uso e a Política de Privacidade
+            </label>
+          </div>
+        )}
         <button className="primary" type="submit" disabled={submitting}>
           {mode === 'login' ? 'Entrar' : 'Criar conta'}
         </button>

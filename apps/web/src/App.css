@@ -30,6 +30,19 @@
   color: var(--text-h);
 }
 
+.field-checkbox label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.field-checkbox input[type='checkbox'] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
 button.primary {
   font: inherit;
   font-weight: 600;
