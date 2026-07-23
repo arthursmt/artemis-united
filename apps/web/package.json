@@ -12,7 +12,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@artemis-united/analytics": "*",
     "@artemis-united/shared-types": "*",
+    "posthog-js": "^1.194.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
