@@ -91,7 +91,8 @@ anterior, não de `main`. Ordem real (atualizado conforme avanço):
 main
  └─ chore/etapa5-progress-file              (tarefa 1)
      └─ feat/etapa5-signup-email-verification  (tarefa 2)
-         └─ feat/etapa5-forgot-password          (tarefa 3, em andamento)
+         └─ feat/etapa5-forgot-password          (tarefa 3)
+             └─ feat/etapa5-onboarding-cliente     (tarefa 4, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -178,4 +179,54 @@ Testado com curl real:
 - login com senha antiga → 401 (já trocou)
 - login com senha nova → 200 (conta auto-verificada pelo reset)
 - reuso do mesmo token de reset → 400 (uso único confirmado)
+- dado de teste limpo do banco ao final
+
+### Tarefa 4 — Onboarding-cliente completo
+
+Status: ✅ concluída. Branch `feat/etapa5-onboarding-cliente` (empilhada sobre
+a tarefa 3), commit feito e push feito.
+
+Campos implementados (todos os pedidos): data de nascimento, endereço
+residencial completo (linha 1, linha 2 opcional, cidade, estado, CEP — padrão
+EUA), estado civil, filhos (sim/não), nº de pessoas na casa (opcional, único
+campo assim marcado no pedido), telefone alternativo.
+
+Decisões de implementação:
+- Nova tabela `customer_profiles` (1:1 com `users`, `userId` UNIQUE) em vez de
+  colunas soltas em `users` — mesmo racional de `businesses`/
+  `financial_statements`: domínio de dado distinto, e a tarefa 6 (Configurações
+  — Dados Pessoais) faz CRUD só sobre isto.
+- **Verificação explícita da fronteira ECOA (decisão #16)**: rodei `grep` em
+  `bobEngineClient.ts`, `routes/financialStatements.ts`, `routes/
+  assessments.ts` e todo `services/bob-engine` procurando por
+  `customerProfile`/`maritalStatus`/`dateOfBirth`/`hasChildren`/
+  `householdSize` — zero ocorrências. Documentado como comentário no próprio
+  schema (`customerProfiles`) pra qualquer edição futura ver o aviso antes de
+  criar esse acoplamento.
+- Nova constante compartilhada `packages/shared-types/src/usStates.ts` (50
+  estados + DC) — usada tanto na validação do servidor (`state` precisa ser um
+  código válido) quanto no dropdown do formulário. Não é invenção de escopo:
+  "endereço residencial (padrão EUA)" já implica essa lista fixa e
+  universalmente conhecida.
+- `estado civil` implementado como enum do Postgres (`single`/`married`/
+  `divorced`/`widowed`/`separated`) — categorias comuns, não estava
+  especificado no pedido além do nome do campo.
+- `POST /v1/customer-profile` só cria (409 se já existe) — leitura via `GET
+  /me`. Atualização (PUT) fica pra tarefa 6, que é explicitamente sobre isso.
+- Fluxo de onboarding reordenado: `routeAfterAuth` agora checa perfil-cliente
+  **antes** de checar negócio (onboarding-cliente → onboarding-negócio →
+  DRE → dashboard) — decisão minha, não especificada explicitamente, mas é a
+  ordem lógica (dados pessoais antes de dados do negócio).
+- Telefone alternativo: implementado como campo obrigatório (não fabriquei
+  validação de formato de telefone — só não-vazio). Só "nº de pessoas na casa"
+  estava marcado "(opcional)" no pedido; se a intenção real for diferente,
+  fica como ponto a revisar, não decidi reinterpretar.
+
+Testado com curl real:
+- criação com `state` inválido → 400
+- criação com dados válidos → 201
+- criação duplicada → 409
+- `GET /me` antes de criar → 404, depois de criar → 200
+- confirmado que `GET /businesses/me` continua 404 depois do perfil-cliente
+  criado (ordem do fluxo intacta — onboarding-negócio ainda pendente)
 - dado de teste limpo do banco ao final

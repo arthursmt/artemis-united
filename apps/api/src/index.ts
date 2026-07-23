@@ -9,6 +9,7 @@ import type { HealthStatus } from '@artemis-united/shared-types'
 import { assessmentsRouter } from './routes/assessments.js'
 import { authRouter } from './routes/auth.js'
 import { businessesRouter } from './routes/businesses.js'
+import { customerProfileRouter } from './routes/customerProfile.js'
 import { financialStatementsRouter } from './routes/financialStatements.js'
 
 const app = express()
@@ -23,6 +24,7 @@ app.get('/health', (_req, res) => {
 })
 
 app.use('/v1/auth', authRouter)
+app.use('/v1/customer-profile', customerProfileRouter)
 app.use('/v1/businesses', businessesRouter)
 app.use('/v1/financial-statements', financialStatementsRouter)
 app.use('/v1/assessments', assessmentsRouter)

@@ -1,4 +1,4 @@
-import { numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, date, integer, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 // Nenhuma modelagem formal foi encontrada no repositório para este dominio;
 // as tabelas abaixo sao uma primeira aproximacao a partir dos nomes pedidos
@@ -53,6 +53,47 @@ export const passwordResetTokens = appSchema.table('password_reset_tokens', {
     .references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const maritalStatus = appSchema.enum('marital_status', [
+  'single',
+  'married',
+  'divorced',
+  'widowed',
+  'separated',
+])
+
+// Dados de onboarding-cliente (Etapa 5, seção 4.3) — 1:1 com users. Tabela
+// separada em vez de colunas soltas em `users` pelo mesmo motivo de
+// `businesses`/`financial_statements`: é um domínio de dado distinto (perfil
+// pessoal, não credencial), e Configurações (tarefa 6) faz CRUD só sobre isto.
+//
+// IMPORTANTE — fronteira da decisão #16 (ECOA) do plano mestre: nenhum campo
+// desta tabela pode ser lido, referenciado ou passado para bob-engine em
+// nenhuma hipótese. bobEngineClient.ts não importa nem sabe que esta tabela
+// existe — não adicionar esse acoplamento no futuro sem reabrir a decisão.
+export const customerProfiles = appSchema.table('customer_profiles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  dateOfBirth: date('date_of_birth').notNull(),
+  addressLine1: text('address_line1').notNull(),
+  addressLine2: text('address_line2'),
+  city: text('city').notNull(),
+  // Sigla de 2 letras (padrão EUA, ex: "NY", "FL") — validada na camada de
+  // aplicação contra a lista oficial de 50 estados + DC, texto livre no schema
+  // pelo mesmo motivo de sectorSegment (evita migração se a lista mudar).
+  state: text('state').notNull(),
+  zipCode: text('zip_code').notNull(),
+  maritalStatus: maritalStatus('marital_status').notNull(),
+  hasChildren: boolean('has_children').notNull(),
+  // Opcional — único campo explicitamente marcado "(opcional)" no pedido.
+  householdSize: integer('household_size'),
+  alternatePhone: text('alternate_phone').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const businesses = appSchema.table('businesses', {

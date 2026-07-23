@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { me, verifyEmail } from './api/auth'
 import { getMyBusiness } from './api/businesses'
 import { ApiError } from './api/client'
+import { getMyCustomerProfile } from './api/customerProfile'
 import { AuthForm } from './components/AuthForm'
 import { BusinessOnboardingForm } from './components/BusinessOnboardingForm'
+import { CustomerOnboardingForm } from './components/CustomerOnboardingForm'
 import { Dashboard } from './components/Dashboard'
 import { DreForm } from './components/DreForm'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
@@ -19,7 +21,8 @@ type View =
   | { name: 'reset-password'; token: string }
   | { name: 'verify-pending'; email: string }
   | { name: 'verify-error'; message: string }
-  | { name: 'onboarding' }
+  | { name: 'customer-onboarding' }
+  | { name: 'business-onboarding' }
   | { name: 'dashboard' }
   | { name: 'dre-form' }
 
@@ -29,12 +32,19 @@ function App() {
   const [business, setBusiness] = useState<Business | null>(null)
 
   // Usado tanto no restore de sessão (mount) quanto logo após um login/signup/
-  // confirmação de email/reset de senha — em todos os casos precisamos saber
-  // se o usuário já tem negócio antes de decidir entre onboarding e dashboard.
+  // confirmação de email/reset de senha — em todos os casos precisamos decidir
+  // entre onboarding-cliente, onboarding-negócio ou dashboard, nessa ordem
+  // (perfil pessoal antes de negócio).
   async function routeAfterAuth() {
+    const profileResult = await getMyCustomerProfile().catch(() => undefined)
+    if (!profileResult) {
+      setView({ name: 'customer-onboarding' })
+      return
+    }
+
     const businessResult = await getMyBusiness().catch(() => undefined)
     if (!businessResult) {
-      setView({ name: 'onboarding' })
+      setView({ name: 'business-onboarding' })
       return
     }
     setBusiness(businessResult.business)
@@ -149,7 +159,11 @@ function App() {
     )
   }
 
-  if (view.name === 'onboarding') {
+  if (view.name === 'customer-onboarding') {
+    return <CustomerOnboardingForm onCreated={() => setView({ name: 'business-onboarding' })} />
+  }
+
+  if (view.name === 'business-onboarding') {
     return (
       <BusinessOnboardingForm
         onCreated={(createdBusiness) => {

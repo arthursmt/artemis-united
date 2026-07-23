@@ -3,6 +3,25 @@ export interface User {
   email: string
 }
 
+export type MaritalStatus = 'single' | 'married' | 'divorced' | 'widowed' | 'separated'
+
+export interface CustomerProfile {
+  id: string
+  userId: string
+  dateOfBirth: string
+  addressLine1: string
+  addressLine2: string | null
+  city: string
+  state: string
+  zipCode: string
+  maritalStatus: MaritalStatus
+  hasChildren: boolean
+  householdSize: number | null
+  alternatePhone: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Business {
   id: string
   ownerUserId: string
