@@ -74,7 +74,7 @@ dada diretamente.
 | 7 | Configurações — Dados do Negócio (CRUD sobre tarefa 5, sem criar 2º negócio) | ✅ feito |
 | 8 | Configurações — Segurança (troca de senha; 2FA só se sobrar tempo) | ⚠️ troca de senha feita, 2FA pendente (ver log) |
 | 9 | Configurações — Logout (verificar se já existe antes de duplicar) | ✅ feito (verificação, sem código novo) |
-| 10 | Chat com BoB (menor prioridade — só se sobrar tempo/contexto) | pendente |
+| 10 | Chat com BoB (menor prioridade — só se sobrar tempo/contexto) | ✅ feito |
 
 ## Decisão de estrutura de branches
 
@@ -97,7 +97,8 @@ main
                      └─ feat/etapa5-settings-pessoais  (tarefa 6)
                          └─ feat/etapa5-settings-negocio (tarefa 7)
                              └─ feat/etapa5-settings-seguranca (tarefa 8)
-                                 └─ feat/etapa5-settings-logout (tarefa 9, em andamento)
+                                 └─ feat/etapa5-settings-logout (tarefa 9)
+                                     └─ feat/etapa5-chat-bob (tarefa 10, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -381,3 +382,71 @@ mesmo cookie** (sem logout de novo, sem novo login) → 401. Isso prova que a
 invalidação é no servidor — um cookie clonado/reaproveitado depois do logout
 não funciona mais, o que não seria o caso se o logout só limpasse o cookie
 do lado do cliente. Dado de teste limpo do banco ao final.
+
+### Tarefa 10 — Chat com BoB (menor prioridade)
+
+Status: ✅ concluída. Branch `feat/etapa5-chat-bob` (empilhada sobre a
+tarefa 9), commit feito e push feito. Chegou nesta sessão porque sobrou
+tempo/contexto depois das tarefas 2-9, exatamente como o pedido previa.
+
+Decisões de implementação:
+- **Sem SDK novo** — chamada direta via `fetch` nativo pra
+  `https://api.anthropic.com/v1/messages` (endpoint oficial documentado),
+  em vez de adicionar `@anthropic-ai/sdk` como dependência só pra isto. Mesma
+  filosofia de minimalismo já aplicada no resto da sessão.
+- Modelo usado: `claude-sonnet-5` — o ID mais atual disponível, sem
+  necessidade de consultar a skill `claude-api` porque o próprio contexto
+  desta sessão já traz os IDs corretos (Sonnet 5, Opus 4.8, Haiku 4.5).
+- **`ANTHROPIC_API_KEY` — mesmo padrão do `SENTRY_DSN`**: sem a chave no
+  ambiente, `POST /v1/chat` responde `{configured: false}` com **200** (não é
+  um erro, é um estado normal do ambiente de dev sem credencial real) — nunca
+  simula resposta, nunca trava a requisição. **Não inventei nenhuma chave**
+  (confirmado: `ANTHROPIC_API_KEY` não existe no `.env` real usado nesta
+  sessão).
+- Prompt do sistema usa a voz do BoB tal como descrita no pedido (calorosa,
+  direta, linguagem simples, não-julgadora) + injeta o assessment mais
+  recente do negócio como contexto (reusa `fetchLatestAssessment` de
+  `bobEngineClient.ts`, já existente da Etapa 4 — nenhuma mudança em
+  `services/bob-engine`).
+- `POST /v1/chat` exige negócio existente (409 se não), mas **não exige
+  assessment existente** — sem avaliação ainda, o contexto injetado no prompt
+  só diz isso explicitamente ("o usuário ainda não tem avaliação calculada"),
+  não é bloqueio.
+- Frontend: `ChatScreen.tsx` simples (histórico de mensagens em memória, sem
+  persistência — não pedido), acessível via link "Chat com BoB" no topo do
+  Dashboard. Mostra um aviso claro (não um erro genérico) quando
+  `configured: false`.
+
+**Achado durante o teste, não um bug**: o primeiro teste deu 500 porque o
+`services/bob-engine` não estava rodando desde o início desta sessão (nunca
+precisei subir ele antes — as tarefas 2-9 são só `apps/api`/`apps/web`). Subi
+o serviço (sem tocar em nenhum arquivo dele, regra global respeitada) e o
+teste passou normalmente.
+
+Testado com curl real: chat sem negócio → 409; chat com negócio mas sem
+`ANTHROPIC_API_KEY` (com bob-engine real rodando, `fetchLatestAssessment`
+retornando `not_found` corretamente) → 200 `{"configured":false}`. Dado de
+teste limpo do banco ao final.
+
+## Resumo final da sessão
+
+Fila completa: 10/10 tarefas concluídas (tarefa 8 com uma pendência
+explicitamente documentada — 2FA). 9 branches empilhadas, cada uma commitada
+e pushada para o `origin`, nenhuma PR aberta, nenhum merge feito, `main`
+nunca tocada diretamente — exatamente como pedido.
+
+Pendências reais deixadas registradas (não escondidas):
+1. **2FA** (tarefa 8) — nem TOTP nem código por email, decisão de qual vem
+   primeiro fica pro fundador.
+2. **Reenvio de verificação de email** (tarefa 2) — não construído, endpoint
+   único de verificação depende do log do stub pra reobter o token se
+   perdido.
+3. **Texto legal real de Termos de Uso/Privacidade** (tarefa 2) — checkbox
+   funcional, mas sem conteúdo jurídico real por trás (não fabriquei texto
+   legal).
+4. Nenhum campo de onboarding-cliente chegou a `bob-engine` em nenhum
+   momento — verificado explicitamente via `grep` na tarefa 4, não só por
+   inspeção visual.
+5. `services/bob-engine` não foi tocado em nenhuma tarefa — confirmado por
+   `git status`/`git diff` a cada branch, zero arquivos daquele diretório
+   apareceram em qualquer commit desta sessão.

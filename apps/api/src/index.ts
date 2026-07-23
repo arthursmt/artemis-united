@@ -9,6 +9,7 @@ import type { HealthStatus } from '@artemis-united/shared-types'
 import { assessmentsRouter } from './routes/assessments.js'
 import { authRouter } from './routes/auth.js'
 import { businessesRouter } from './routes/businesses.js'
+import { chatRouter } from './routes/chat.js'
 import { customerProfileRouter } from './routes/customerProfile.js'
 import { financialStatementsRouter } from './routes/financialStatements.js'
 
@@ -28,6 +29,7 @@ app.use('/v1/customer-profile', customerProfileRouter)
 app.use('/v1/businesses', businessesRouter)
 app.use('/v1/financial-statements', financialStatementsRouter)
 app.use('/v1/assessments', assessmentsRouter)
+app.use('/v1/chat', chatRouter)
 
 // Rede de segurança genérica — qualquer erro não tratado explicitamente por uma rota
 // (síncrono, ou assíncrono via express-async-errors acima) cai aqui em vez de deixar

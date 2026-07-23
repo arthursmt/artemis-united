@@ -6,6 +6,7 @@ import { getMyCustomerProfile } from './api/customerProfile'
 import { AuthForm } from './components/AuthForm'
 import { BusinessDetailsForm } from './components/BusinessDetailsForm'
 import { BusinessOnboardingForm } from './components/BusinessOnboardingForm'
+import { ChatScreen } from './components/ChatScreen'
 import { CustomerOnboardingForm } from './components/CustomerOnboardingForm'
 import { Dashboard } from './components/Dashboard'
 import { DreForm } from './components/DreForm'
@@ -28,6 +29,7 @@ type View =
   | { name: 'business-details-onboarding' }
   | { name: 'dashboard' }
   | { name: 'settings' }
+  | { name: 'chat' }
   | { name: 'dre-form' }
 
 function App() {
@@ -212,6 +214,10 @@ function App() {
     )
   }
 
+  if (view.name === 'chat') {
+    return <ChatScreen onBack={() => setView({ name: 'dashboard' })} />
+  }
+
   if (!business) {
     // Não deveria acontecer — dashboard só é alcançável com negócio já carregado.
     return <p>Algo deu errado. Recarregue a página.</p>
@@ -222,6 +228,7 @@ function App() {
       business={business}
       onOpenDreForm={() => setView({ name: 'dre-form' })}
       onOpenSettings={() => setView({ name: 'settings' })}
+      onOpenChat={() => setView({ name: 'chat' })}
       onLoggedOut={() => {
         setUser(null)
         setBusiness(null)

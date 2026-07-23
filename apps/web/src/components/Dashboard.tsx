@@ -20,11 +20,13 @@ export function Dashboard({
   business,
   onOpenDreForm,
   onOpenSettings,
+  onOpenChat,
   onLoggedOut,
 }: {
   business: Business
   onOpenDreForm: () => void
   onOpenSettings: () => void
+  onOpenChat: () => void
   onLoggedOut: () => void
 }) {
   const [assessment, setAssessment] = useState<AssessmentView | null>(null)
@@ -58,6 +60,10 @@ export function Dashboard({
       <div className="top-bar">
         <h1>{business.name}</h1>
         <div>
+          <button className="link" type="button" onClick={onOpenChat}>
+            Chat com BoB
+          </button>
+          {' · '}
           <button className="link" type="button" onClick={onOpenSettings}>
             Configurações
           </button>
