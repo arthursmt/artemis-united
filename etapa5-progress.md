@@ -90,7 +90,8 @@ anterior, não de `main`. Ordem real (atualizado conforme avanço):
 ```
 main
  └─ chore/etapa5-progress-file              (tarefa 1)
-     └─ feat/etapa5-signup-email-verification  (tarefa 2, em andamento)
+     └─ feat/etapa5-signup-email-verification  (tarefa 2)
+         └─ feat/etapa5-forgot-password          (tarefa 3, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -139,3 +140,42 @@ mestre ausente, mas necessárias pra fechar o fluxo):
   a Política de Privacidade"), sem link pra documento real (não existe). Isso
   é uma pendência de conteúdo jurídico real, não uma implementação técnica —
   registrado, não resolvido.
+
+### Tarefa 3 — Esqueci minha senha
+
+Status: ✅ concluída. Branch `feat/etapa5-forgot-password` (empilhada sobre a
+tarefa 2), commit feito e push feito.
+
+Decisões de implementação:
+- Nova tabela `password_reset_tokens` — mesmo padrão de token de uso único, mas
+  separada de `email_verification_tokens` (ciclo de vida diferente: cada nova
+  solicitação de reset **invalida qualquer token anterior** do mesmo usuário —
+  `createPasswordResetToken` apaga tokens antigos antes de criar o novo).
+  Validade de 1h (mais curta que a de verificação de cadastro, 24h — reset é
+  mais sensível).
+- `POST /v1/auth/forgot-password` sempre responde a mesma mensagem genérica,
+  exista ou não o email — evita enumeração de contas. Só envia o email (stub)
+  se o usuário existir de verdade.
+- `POST /v1/auth/reset-password`: consome o token, troca a senha, **derruba
+  todas as sessões existentes do usuário** (`invalidateAllUserSessions`, nova
+  função em `auth/session.ts` — antes só existia invalidar uma sessão por id),
+  e cria uma sessão nova (login automático pós-reset).
+- Decisão não pedida explicitamente, meu julgamento: completar um reset via
+  link de email prova posse da caixa de entrada, igual à verificação de
+  cadastro — então `reset-password` também marca `emailVerifiedAt` se ainda
+  não estava marcado, pra uma conta nunca verificada não ficar presa depois de
+  provar acesso ao email por outro caminho. Login normal continua exigindo
+  `emailVerifiedAt` — só o próprio reset ganha esse efeito colateral.
+- Mesmo stub de email da tarefa 2 (`lib/emailStub.ts`), reusado sem alteração.
+
+Testado com curl real:
+- `forgot-password` pra email inexistente vs. existente → resposta idêntica
+  (200, mesma mensagem genérica)
+- `reset-password` com token inválido → 400
+- `reset-password` com senha fraca → 400
+- `reset-password` com token real + senha válida → 200 + sessão criada
+  (confirmado via `GET /me`)
+- login com senha antiga → 401 (já trocou)
+- login com senha nova → 200 (conta auto-verificada pelo reset)
+- reuso do mesmo token de reset → 400 (uso único confirmado)
+- dado de teste limpo do banco ao final

@@ -10,9 +10,11 @@ import {
 } from '../auth/emailVerification.js'
 import { requireAuth } from '../auth/middleware.js'
 import { hashPassword, isPasswordValid, verifyPassword } from '../auth/password.js'
+import { consumePasswordResetToken, createPasswordResetToken, generateResetToken } from '../auth/passwordReset.js'
 import {
   createSession,
   generateSessionToken,
+  invalidateAllUserSessions,
   invalidateSession,
   SESSION_COOKIE_NAME,
   validateSessionToken,
@@ -154,6 +156,73 @@ authRouter.post('/login', async (req, res) => {
   setSessionCookie(res, token, session.expiresAt)
 
   res.status(200).json({ user: { id: user.id, email: user.email } })
+})
+
+authRouter.post('/forgot-password', async (req, res) => {
+  const email = (req.body as { email?: unknown })?.email
+  if (typeof email !== 'string' || email.trim() === '') {
+    res.status(400).json({ error: 'email is required' })
+    return
+  }
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.email, normalizedEmail))
+
+  // Resposta genérica sempre — não revela se o email existe ou não (evita
+  // enumeração de contas). Só envia o email (stub) se o usuário existir de
+  // verdade.
+  if (user) {
+    const resetToken = generateResetToken()
+    await createPasswordResetToken(resetToken, user.id)
+    sendStubEmail(user.email, 'Redefinir sua senha — Artemis United', {
+      resetUrl: `${webAppUrl()}/?reset=${resetToken}`,
+    })
+  }
+
+  res.status(200).json({ message: 'if that email is registered, a reset link was sent' })
+})
+
+authRouter.post('/reset-password', async (req, res) => {
+  const body = req.body as { token?: unknown; newPassword?: unknown }
+  if (typeof body?.token !== 'string' || body.token === '') {
+    res.status(400).json({ error: 'token is required' })
+    return
+  }
+  if (typeof body.newPassword !== 'string' || !isPasswordValid(body.newPassword)) {
+    res.status(400).json({
+      error:
+        'password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit, and a special character',
+    })
+    return
+  }
+
+  const userId = await consumePasswordResetToken(body.token)
+  if (!userId) {
+    res.status(400).json({ error: 'invalid or expired token' })
+    return
+  }
+
+  const passwordHash = await hashPassword(body.newPassword)
+  // Completar um reset de senha via link de email prova posse da caixa de
+  // entrada, igual à verificação de cadastro — marca emailVerifiedAt aqui
+  // também, pra uma conta nunca verificada não ficar presa (login normal
+  // continua bloqueado pra conta não verificada, mas o reset por si só já é
+  // prova de acesso ao email).
+  const [user] = await db
+    .update(users)
+    .set({ passwordHash, emailVerifiedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning({ id: users.id, email: users.email })
+
+  // Troca de senha derruba qualquer sessão existente (inclusive outros
+  // dispositivos) — depois loga de novo com a sessão nova.
+  await invalidateAllUserSessions(user.id)
+
+  const sessionToken = generateSessionToken()
+  const session = await createSession(sessionToken, user.id)
+  setSessionCookie(res, sessionToken, session.expiresAt)
+
+  res.status(200).json({ user })
 })
 
 // Restaura sessão no reload do browser (apps/web não tem outra forma de saber se o

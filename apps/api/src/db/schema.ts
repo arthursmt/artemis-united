@@ -41,6 +41,19 @@ export const emailVerificationTokens = appSchema.table('email_verification_token
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Mesmo padrão de email_verification_tokens — tabela separada porque o ciclo de
+// vida é diferente: reset pode ser solicitado várias vezes, e cada solicitação
+// nova invalida qualquer token anterior do mesmo usuário (ver
+// auth/passwordReset.ts) — não faz sentido reaproveitar a tabela de verificação
+// de email pra isso.
+export const passwordResetTokens = appSchema.table('password_reset_tokens', {
+  id: text('id').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 export const businesses = appSchema.table('businesses', {
   id: uuid('id').primaryKey().defaultRandom(),

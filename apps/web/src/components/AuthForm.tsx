@@ -6,9 +6,11 @@ import type { User } from '../types'
 export function AuthForm({
   onAuthenticated,
   onSignupRequiresVerification,
+  onForgotPassword,
 }: {
   onAuthenticated: (user: User) => void
   onSignupRequiresVerification: (email: string) => void
+  onForgotPassword: () => void
 }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
@@ -91,6 +93,10 @@ export function AuthForm({
             Não tem conta?{' '}
             <button className="link" type="button" onClick={() => setMode('signup')}>
               Criar conta
+            </button>
+            {' · '}
+            <button className="link" type="button" onClick={onForgotPassword}>
+              Esqueci minha senha
             </button>
           </>
         ) : (

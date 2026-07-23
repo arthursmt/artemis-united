@@ -6,6 +6,8 @@ import { AuthForm } from './components/AuthForm'
 import { BusinessOnboardingForm } from './components/BusinessOnboardingForm'
 import { Dashboard } from './components/Dashboard'
 import { DreForm } from './components/DreForm'
+import { ForgotPasswordForm } from './components/ForgotPasswordForm'
+import { ResetPasswordForm } from './components/ResetPasswordForm'
 import { VerifyEmailPending } from './components/VerifyEmailPending'
 import type { Business, User } from './types'
 import './App.css'
@@ -13,6 +15,8 @@ import './App.css'
 type View =
   | { name: 'loading' }
   | { name: 'auth' }
+  | { name: 'forgot-password' }
+  | { name: 'reset-password'; token: string }
   | { name: 'verify-pending'; email: string }
   | { name: 'verify-error'; message: string }
   | { name: 'onboarding' }
@@ -25,8 +29,8 @@ function App() {
   const [business, setBusiness] = useState<Business | null>(null)
 
   // Usado tanto no restore de sessão (mount) quanto logo após um login/signup/
-  // confirmação de email — nos três casos precisamos saber se o usuário já tem
-  // negócio antes de decidir entre onboarding e dashboard.
+  // confirmação de email/reset de senha — em todos os casos precisamos saber
+  // se o usuário já tem negócio antes de decidir entre onboarding e dashboard.
   async function routeAfterAuth() {
     const businessResult = await getMyBusiness().catch(() => undefined)
     if (!businessResult) {
@@ -44,7 +48,6 @@ function App() {
     // apps/api/src/routes/auth.ts). Sem router — lê a query string direto e
     // limpa a URL depois, pra não reconsumir o token num F5.
     async function handleEmailVerificationLink(token: string) {
-      window.history.replaceState({}, '', window.location.pathname)
       try {
         const result = await verifyEmail(token)
         if (cancelled || !result) return
@@ -62,8 +65,21 @@ function App() {
     async function restoreSession() {
       const params = new URLSearchParams(window.location.search)
       const verifyToken = params.get('verify')
+      const resetToken = params.get('reset')
+
+      if (verifyToken || resetToken) {
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+
       if (verifyToken) {
         await handleEmailVerificationLink(verifyToken)
+        return
+      }
+
+      // Reset de senha não é consumido automaticamente — só mostra o
+      // formulário; o POST acontece quando o usuário envia a nova senha.
+      if (resetToken) {
+        setView({ name: 'reset-password', token: resetToken })
         return
       }
 
@@ -96,6 +112,23 @@ function App() {
           void routeAfterAuth()
         }}
         onSignupRequiresVerification={(email) => setView({ name: 'verify-pending', email })}
+        onForgotPassword={() => setView({ name: 'forgot-password' })}
+      />
+    )
+  }
+
+  if (view.name === 'forgot-password') {
+    return <ForgotPasswordForm onBackToLogin={() => setView({ name: 'auth' })} />
+  }
+
+  if (view.name === 'reset-password') {
+    return (
+      <ResetPasswordForm
+        token={view.token}
+        onReset={(resetUser) => {
+          setUser(resetUser)
+          void routeAfterAuth()
+        }}
       />
     )
   }

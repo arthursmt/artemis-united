@@ -20,6 +20,14 @@ export function login(email: string, password: string): Promise<{ user: User } |
   return apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 }
 
+export function forgotPassword(email: string): Promise<{ message: string } | undefined> {
+  return apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<{ user: User } | undefined> {
+  return apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) })
+}
+
 export function me(): Promise<{ user: User } | undefined> {
   return apiFetch('/auth/me')
 }

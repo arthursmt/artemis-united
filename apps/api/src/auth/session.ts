@@ -82,3 +82,9 @@ export async function validateSessionToken(token: string): Promise<SessionValida
 export async function invalidateSession(sessionId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId))
 }
+
+// Usado no reset de senha — trocar a senha deve derrubar qualquer sessão
+// existente (inclusive em outros dispositivos), não só a que fez a troca.
+export async function invalidateAllUserSessions(userId: string): Promise<void> {
+  await db.delete(sessions).where(eq(sessions.userId, userId))
+}
