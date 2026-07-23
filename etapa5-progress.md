@@ -428,6 +428,112 @@ Testado com curl real: chat sem negócio → 409; chat com negócio mas sem
 retornando `not_found` corretamente) → 200 `{"configured":false}`. Dado de
 teste limpo do banco ao final.
 
+## Fase 2 (jul/2026) — 2FA por email, reenvio de verificação, plano mestre
+
+Retomada da sessão a pedido do fundador, resolvendo diretamente as pendências
+1 e 2 do resumo final abaixo (2FA e reenvio de verificação), mais a primeira
+edição registrada em `artemis-united-plano-mestre.md` (arquivo que apareceu
+untracked no repo nesta fase — confirmado ausente em todas as branches até
+aqui).
+
+### `artemis-united-plano-mestre.md`
+
+Branch `docs/plano-mestre-pendencias-etapa5` (a partir de `main`, não
+empilhada — mudança de documentação, não de código). Commit `603ea97`, push
+feito, sem merge.
+
+Três mudanças: (1) Seção 2 marca 2FA V1 como decidido (só email, TOTP sem
+escopo); (2) nova seção 4.9 "Pendências e decisões de UX/Fluxo (Etapa 5)" com
+os itens decididos nesta fase + a pendência real de texto legal (não bloqueia
+beta fechado); (3) três novas linhas no Log de decisões (#40, #41, #42).
+
+### Tarefa 11 — 2FA por email
+
+Status: ✅ concluída. Branch `feat/etapa5-2fa-email` (empilhada sobre
+`feat/etapa5-chat-bob`, tarefa 10) — resolve a pendência 1 do resumo final
+abaixo.
+
+Decisões de implementação:
+- **Schema**: `users.twoFactorEnabled` (opt-in, por usuário — afeta todo
+  login futuro em qualquer dispositivo); `sessions.isTwoFactorSession` (por
+  linha de sessão, nunca por usuário — é o ponto crítico pedido
+  explicitamente: um segundo dispositivo não pode herdar a autenticação do
+  primeiro); nova tabela `two_factor_codes` (`userId` UNIQUE, um código
+  pendente por vez, `id` é UUID aleatório — não hash do código, porque um
+  código de 6 dígitos colidiria entre usuários se usado como chave). Migração
+  `0008_wet_tiger_shark.sql`, só aditiva, sem prompt interativo.
+- **Duas políticas de sessão coexistindo em `auth/session.ts`**: padrão de 30
+  dias (decisão #18, Etapa 2, **inalterado** para sessões sem 2FA) e 24h
+  rolantes (decisão #41, só para sessões com `isTwoFactorSession: true`).
+  `validateSessionToken` lê o flag da própria linha da sessão pra escolher a
+  política — não existe um "modo 2FA global" em lugar nenhum.
+- **Três prazos distintos, documentados separadamente pra não confundir**:
+  validade do código de 2FA em si (10 min, `twoFactor.ts`), cooldown de
+  reenvio do código de 2FA (60s — é um código de login, usuário está
+  esperando na tela), validade da sessão pós-2FA (24h rolantes, acima).
+- `POST /login`: senha certa + `twoFactorEnabled` → gera código, envia por
+  email (stub), responde `{twoFactorRequired: true, userId}` **sem** criar
+  sessão. `userId` só é devolvido depois da senha já ter sido validada — sem
+  a senha certa, um atacante nunca chega nessa resposta.
+- `POST /verify-2fa`: consome o código (uso único, `userId` + `code` no
+  corpo), cria a sessão com `twoFactor: true`.
+- `POST /resend-2fa`: mesma função de criação de código, respeita o cooldown
+  de 60s (429 + `retryAfterSeconds` se pedir de novo cedo demais).
+- `POST /two-factor/toggle` (requireAuth): liga/desliga o opt-in do usuário
+  autenticado.
+
+**Teste obrigatório multi-dispositivo (pedido explicitamente pelo fundador,
+critério de parada se falhasse) — passou:**
+1. Sessão A (cookie jar 1): login → `twoFactorRequired`, código real extraído
+   do log do stub, `verify-2fa` → sessão criada, `is_two_factor_session = t`,
+   `expires_at` ~24h à frente (confirmado via `psql`).
+2. Sessão B (cookie jar 2 **separado**, mesmo usuário): login **enquanto a
+   sessão A ainda estava válida dentro da janela de 24h** → respondeu
+   `twoFactorRequired: true` normalmente, **exigiu o código de novo**. Não
+   houve nenhum atalho/herança da autenticação da sessão A.
+3. Confirmado que a sessão A continuou válida e intacta depois do login da
+   sessão B (a geração do código novo pra B não afeta a sessão já criada de
+   A).
+4. Sessão B completou o próprio `verify-2fa` com o próprio código → segunda
+   sessão criada, também `is_two_factor_session = t`, também 24h — duas
+   linhas independentes em `app.sessions` pro mesmo `user_id`, confirmado via
+   `psql`.
+
+Outros testes com curl real: usuário sem 2FA ativo faz login normal (sessão
+direta, `is_two_factor_session = f`, ~30 dias — política padrão intacta);
+código errado → 400; resend antes do cooldown → 429 com `retryAfterSeconds`.
+Dado de teste limpo do banco ao final.
+
+### Tarefa 12 — Reenvio de verificação de cadastro
+
+Status: ✅ concluída. Mesma branch `feat/etapa5-2fa-email` — resolve a
+pendência 2 do resumo final abaixo.
+
+- `resendEmailVerificationToken` em `auth/emailVerification.ts`: busca token
+  pendente por `userId` (o `id` da tabela é hash do token, não dá pra buscar
+  por ele sem conhecer o token) — se existir e o cooldown de 24h não tiver
+  passado, retorna `retryAfterSeconds`; senão apaga o antigo e cria um novo.
+- `POST /v1/auth/resend-verification`: **decisão explícita do fundador de
+  divergir do padrão anti-enumeração do forgot-password** — aqui a resposta é
+  clara (404 se a conta não existe, 400 se já verificada, 429 com
+  `retryAfterSeconds` se em cooldown), não uma mensagem genérica. Faz sentido
+  porque o signup já revela via 409 se o email existe; uma resposta vaga
+  aqui não protegeria nada, só pioraria a UX.
+
+Testado com curl real: email desconhecido → 404; conta já verificada → 400;
+pedido imediatamente após o signup (que já envia um) → 429 com
+`retryAfterSeconds: 86400`. Dado de teste limpo do banco ao final.
+
+### Validação da Fase 2
+
+`typecheck`, `build` e `lint` limpos em `apps/api` (workspace único afetado —
+nenhuma mudança em `apps/web` nesta fase, frontend de 2FA/reenvio fica como
+próximo passo). Testes funcionais acima cobrem os três fluxos pedidos:
+login com 2FA ativo, reenvio de verificação respeitando o cooldown, e sessão
+seguindo a regra de 24h rolantes por dispositivo — incluindo o teste
+obrigatório multi-dispositivo, que passou sem indício de herança de
+autenticação entre sessões.
+
 ## Resumo final da sessão
 
 Fila completa: 10/10 tarefas concluídas (tarefa 8 com uma pendência
@@ -436,14 +542,16 @@ e pushada para o `origin`, nenhuma PR aberta, nenhum merge feito, `main`
 nunca tocada diretamente — exatamente como pedido.
 
 Pendências reais deixadas registradas (não escondidas):
-1. **2FA** (tarefa 8) — nem TOTP nem código por email, decisão de qual vem
-   primeiro fica pro fundador.
-2. **Reenvio de verificação de email** (tarefa 2) — não construído, endpoint
-   único de verificação depende do log do stub pra reobter o token se
-   perdido.
+1. ~~**2FA** (tarefa 8) — nem TOTP nem código por email~~ **resolvido na
+   Fase 2** (ver acima): 2FA por email implementado (tarefa 11); TOTP segue
+   deliberadamente sem escopo (decisão #40 do plano mestre).
+2. ~~**Reenvio de verificação de email** (tarefa 2) — não construído~~
+   **resolvido na Fase 2** (ver acima, tarefa 12): cooldown de 24h por
+   usuário.
 3. **Texto legal real de Termos de Uso/Privacidade** (tarefa 2) — checkbox
    funcional, mas sem conteúdo jurídico real por trás (não fabriquei texto
-   legal).
+   legal). Registrado no plano mestre (§4.9) como não-bloqueante para o beta
+   fechado, prioridade baixa por ora.
 4. Nenhum campo de onboarding-cliente chegou a `bob-engine` em nenhum
    momento — verificado explicitamente via `grep` na tarefa 4, não só por
    inspeção visual.

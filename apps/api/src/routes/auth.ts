@@ -7,6 +7,7 @@ import {
   consumeEmailVerificationToken,
   createEmailVerificationToken,
   generateVerificationToken,
+  resendEmailVerificationToken,
 } from '../auth/emailVerification.js'
 import { requireAuth } from '../auth/middleware.js'
 import { hashPassword, isPasswordValid, verifyPassword } from '../auth/password.js'
@@ -19,6 +20,7 @@ import {
   SESSION_COOKIE_NAME,
   validateSessionToken,
 } from '../auth/session.js'
+import { consumeTwoFactorCode, createTwoFactorCode, generateTwoFactorCode } from '../auth/twoFactor.js'
 import { sendStubEmail } from '../lib/emailStub.js'
 
 export const authRouter = Router()
@@ -137,6 +139,7 @@ authRouter.post('/login', async (req, res) => {
       email: users.email,
       passwordHash: users.passwordHash,
       emailVerifiedAt: users.emailVerifiedAt,
+      twoFactorEnabled: users.twoFactorEnabled,
     })
     .from(users)
     .where(eq(users.email, credentials.email))
@@ -151,11 +154,162 @@ authRouter.post('/login', async (req, res) => {
     return
   }
 
+  // Etapa 5 (plano mestre §4.9/decisão #40): 2FA é opt-in por usuário. Senha
+  // certa + 2FA ativo não cria sessão ainda — gera o código, manda por email
+  // (stub) e devolve `twoFactorRequired`. A sessão só nasce em POST
+  // /verify-2fa, e já nasce com `twoFactor: true` (24h rolantes, não os 30
+  // dias padrão). `userId` só é devolvido aqui porque a senha já foi validada
+  // — sem a senha certa, um atacante nunca chega nesta resposta.
+  if (user.twoFactorEnabled) {
+    const code = generateTwoFactorCode()
+    const result = await createTwoFactorCode(user.id, code)
+    if (!result.created) {
+      res.status(429).json({
+        error: 'a code was already sent, please wait before requesting another',
+        retryAfterSeconds: result.retryAfterSeconds,
+      })
+      return
+    }
+
+    sendStubEmail(user.email, 'Seu código de acesso — Artemis United', { code })
+    res.status(200).json({ twoFactorRequired: true, userId: user.id })
+    return
+  }
+
   const token = generateSessionToken()
   const session = await createSession(token, user.id)
   setSessionCookie(res, token, session.expiresAt)
 
   res.status(200).json({ user: { id: user.id, email: user.email } })
+})
+
+authRouter.post('/verify-2fa', async (req, res) => {
+  const body = req.body as { userId?: unknown; code?: unknown }
+  if (typeof body?.userId !== 'string' || body.userId === '') {
+    res.status(400).json({ error: 'userId is required' })
+    return
+  }
+  if (typeof body.code !== 'string' || body.code === '') {
+    res.status(400).json({ error: 'code is required' })
+    return
+  }
+
+  const valid = await consumeTwoFactorCode(body.userId, body.code)
+  if (!valid) {
+    res.status(400).json({ error: 'invalid or expired code' })
+    return
+  }
+
+  const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, body.userId))
+  if (!user) {
+    res.status(400).json({ error: 'invalid or expired code' })
+    return
+  }
+
+  const token = generateSessionToken()
+  const session = await createSession(token, user.id, { twoFactor: true })
+  setSessionCookie(res, token, session.expiresAt)
+
+  res.status(200).json({ user })
+})
+
+authRouter.post('/resend-2fa', async (req, res) => {
+  const body = req.body as { userId?: unknown }
+  if (typeof body?.userId !== 'string' || body.userId === '') {
+    res.status(400).json({ error: 'userId is required' })
+    return
+  }
+
+  const [user] = await db
+    .select({ id: users.id, email: users.email, twoFactorEnabled: users.twoFactorEnabled })
+    .from(users)
+    .where(eq(users.id, body.userId))
+
+  if (!user || !user.twoFactorEnabled) {
+    res.status(400).json({ error: 'invalid request' })
+    return
+  }
+
+  const code = generateTwoFactorCode()
+  const result = await createTwoFactorCode(user.id, code)
+  if (!result.created) {
+    res.status(429).json({
+      error: 'a code was already sent, please wait before requesting another',
+      retryAfterSeconds: result.retryAfterSeconds,
+    })
+    return
+  }
+
+  sendStubEmail(user.email, 'Seu código de acesso — Artemis United', { code })
+  res.status(200).json({ sent: true })
+})
+
+// Tarefa (Configurações — Segurança): liga/desliga 2FA para o usuário
+// autenticado. Por usuário, não por sessão — afeta igualmente todo login
+// futuro desse usuário, em qualquer dispositivo (ver comentário em
+// db/schema.ts sobre a diferença para `sessions.isTwoFactorSession`).
+authRouter.post('/two-factor/toggle', requireAuth, async (req, res) => {
+  const userId = req.user?.id
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' })
+    return
+  }
+
+  const enabled = (req.body as { enabled?: unknown })?.enabled
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ error: 'enabled must be a boolean' })
+    return
+  }
+
+  await db.update(users).set({ twoFactorEnabled: enabled }).where(eq(users.id, userId))
+
+  res.status(200).json({ twoFactorEnabled: enabled })
+})
+
+// Etapa 5 (plano mestre §4.9/decisão #42) — reenvio de verificação de
+// cadastro. Diferente de propósito do forgot-password logo abaixo: aqui o
+// usuário já revelou o próprio email pra criar a conta (signup já responde
+// 409 se o email existe), então uma resposta genérica não protegeria nada e
+// só pioraria a UX — instrução explícita: mensagem clara de "aguarde X",
+// nunca silêncio nem erro genérico.
+authRouter.post('/resend-verification', async (req, res) => {
+  const email = (req.body as { email?: unknown })?.email
+  if (typeof email !== 'string' || email.trim() === '') {
+    res.status(400).json({ error: 'email is required' })
+    return
+  }
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const [user] = await db
+    .select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt })
+    .from(users)
+    .where(eq(users.email, normalizedEmail))
+
+  if (!user) {
+    res.status(404).json({ error: 'no account found for that email' })
+    return
+  }
+
+  if (user.emailVerifiedAt) {
+    res.status(400).json({ error: 'email already verified' })
+    return
+  }
+
+  const verificationToken = generateVerificationToken()
+  const result = await resendEmailVerificationToken(user.id, verificationToken)
+  if (!result.sent) {
+    res.status(429).json({
+      error: 'a verification email was already sent, please wait before requesting another',
+      retryAfterSeconds: result.retryAfterSeconds,
+    })
+    return
+  }
+
+  sendStubEmail(user.email, 'Confirme seu email — Artemis United', {
+    verificationUrl: `${webAppUrl()}/?verify=${verificationToken}`,
+  })
+
+  res.status(200).json({ message: 'verification email sent' })
 })
 
 authRouter.post('/forgot-password', async (req, res) => {

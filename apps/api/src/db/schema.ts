@@ -24,6 +24,12 @@ export const users = appSchema.table('users', {
   termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
   // Nullable = conta ainda não confirmou o email. Ver auth/emailVerification.ts.
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+  // Toggle de 2FA (Etapa 5, plano mestre §4.9/decisão #40) — opt-in, por
+  // usuário, afeta todos os dispositivos igualmente (todo login novo desse
+  // usuário passa a pedir código). Isto é intencionalmente diferente de
+  // `sessions.isTwoFactorSession` (por sessão/dispositivo, não por usuário) —
+  // ver comentário lá pra não confundir os dois.
+  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -51,6 +57,24 @@ export const passwordResetTokens = appSchema.table('password_reset_tokens', {
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Código de 2FA por email (Etapa 5, plano mestre §4.9/decisão #40). Diferente
+// de email_verification_tokens/password_reset_tokens: aqui o "token" é um
+// código numérico curto (6 dígitos, poucas possibilidades) — usar seu hash
+// como chave primária colidiria entre usuários diferentes. `userId` é UNIQUE
+// (não `id`): só um código pendente por usuário, uma nova solicitação
+// substitui a anterior (mesmo padrão de invalidação de password_reset_tokens),
+// e o próprio `createdAt` desta linha é a referência pro cooldown de reenvio.
+export const twoFactorCodes = appSchema.table('two_factor_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -172,4 +196,12 @@ export const sessions = appSchema.table('sessions', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  // Etapa 5 (plano mestre §4.9/decisão #41): marca se ESTA sessão passou pela
+  // autenticação de 2FA — decide se ela segue a política padrão de 30 dias
+  // (decisão #18, Etapa 2, inalterada) ou a política de 24h rolantes de 2FA.
+  // Fica na LINHA DA SESSÃO de propósito, nunca em `users` — um flag no
+  // usuário faria um segundo dispositivo herdar a autenticação do primeiro,
+  // que é exatamente o comportamento errado. Cada sessão nova decide isso por
+  // si só, no momento em que é criada (ver auth/session.ts).
+  isTwoFactorSession: boolean('is_two_factor_session').notNull().default(false),
 })
