@@ -28,6 +28,17 @@ export interface Business {
   name: string
   sectorSegment: string
   taxId: string | null
+  // Preenchidos no segundo passo do onboarding de negócio (Etapa 5, seção 4.4)
+  // — null até o usuário passar por PUT /v1/businesses/me.
+  addressLine1: string | null
+  addressLine2: string | null
+  city: string | null
+  state: string | null
+  zipCode: string | null
+  yearsInBusiness: number | null
+  yearsOfIndustryExperience: number | null
+  phone: string | null
+  numberOfEmployees: number | null
   createdAt: string
   updatedAt: string
 }

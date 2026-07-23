@@ -4,6 +4,7 @@ import { getMyBusiness } from './api/businesses'
 import { ApiError } from './api/client'
 import { getMyCustomerProfile } from './api/customerProfile'
 import { AuthForm } from './components/AuthForm'
+import { BusinessDetailsForm } from './components/BusinessDetailsForm'
 import { BusinessOnboardingForm } from './components/BusinessOnboardingForm'
 import { CustomerOnboardingForm } from './components/CustomerOnboardingForm'
 import { Dashboard } from './components/Dashboard'
@@ -23,6 +24,7 @@ type View =
   | { name: 'verify-error'; message: string }
   | { name: 'customer-onboarding' }
   | { name: 'business-onboarding' }
+  | { name: 'business-details-onboarding' }
   | { name: 'dashboard' }
   | { name: 'dre-form' }
 
@@ -48,6 +50,12 @@ function App() {
       return
     }
     setBusiness(businessResult.business)
+    // addressLine1 null = negócio criado (nome+setor, Etapa 4) mas ainda não
+    // passou pelo segundo passo do onboarding (Etapa 5, seção 4.4).
+    if (businessResult.business.addressLine1 === null) {
+      setView({ name: 'business-details-onboarding' })
+      return
+    }
     setView({ name: 'dashboard' })
   }
 
@@ -168,6 +176,17 @@ function App() {
       <BusinessOnboardingForm
         onCreated={(createdBusiness) => {
           setBusiness(createdBusiness)
+          setView({ name: 'business-details-onboarding' })
+        }}
+      />
+    )
+  }
+
+  if (view.name === 'business-details-onboarding') {
+    return (
+      <BusinessDetailsForm
+        onSaved={(updatedBusiness) => {
+          setBusiness(updatedBusiness)
           setView({ name: 'dre-form' })
         }}
       />

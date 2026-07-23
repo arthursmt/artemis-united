@@ -115,6 +115,22 @@ export const businesses = appSchema.table('businesses', {
   sectorSegment: text('sector_segment').notNull(),
   // Nullable — Etapa 4 não coleta CNPJ/EIN no formulário de criação de negócio.
   taxId: text('tax_id').unique(),
+  // Campos da Etapa 5 (seção 4.4) — nullable no schema porque são preenchidos
+  // num segundo passo do onboarding (depois da criação com nome+setor da
+  // Etapa 4, ver PUT /v1/businesses/me), não na criação em si. Negócios já
+  // existentes (dados de teste da Etapa 4) ficam com null até passarem por
+  // esse segundo passo — a máquina de estados do front (apps/web) trata
+  // addressLine1 null como "onboarding de negócio incompleto".
+  addressLine1: text('business_address_line1'),
+  addressLine2: text('business_address_line2'),
+  city: text('business_city'),
+  state: text('business_state'),
+  zipCode: text('business_zip_code'),
+  yearsInBusiness: integer('years_in_business'),
+  yearsOfIndustryExperience: integer('years_of_industry_experience'),
+  // Opcional — único campo explicitamente marcado "(opcional)" no pedido.
+  phone: text('phone'),
+  numberOfEmployees: integer('number_of_employees'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

@@ -92,7 +92,8 @@ main
  └─ chore/etapa5-progress-file              (tarefa 1)
      └─ feat/etapa5-signup-email-verification  (tarefa 2)
          └─ feat/etapa5-forgot-password          (tarefa 3)
-             └─ feat/etapa5-onboarding-cliente     (tarefa 4, em andamento)
+             └─ feat/etapa5-onboarding-cliente     (tarefa 4)
+                 └─ feat/etapa5-onboarding-negocio   (tarefa 5, em andamento)
 ```
 
 Cada branch continua com commit próprio e push próprio, como pedido. Revisão
@@ -229,4 +230,43 @@ Testado com curl real:
 - `GET /me` antes de criar → 404, depois de criar → 200
 - confirmado que `GET /businesses/me` continua 404 depois do perfil-cliente
   criado (ordem do fluxo intacta — onboarding-negócio ainda pendente)
+- dado de teste limpo do banco ao final
+
+### Tarefa 5 — Onboarding-negócio completo
+
+Status: ✅ concluída. Branch `feat/etapa5-onboarding-negocio` (empilhada sobre
+a tarefa 4), commit feito e push feito.
+
+Decisões de implementação:
+- **Não mexi no `POST /v1/businesses` (criação, nome+setor) da Etapa 4** —
+  interpretei "estender o negócio já criado" literalmente: os campos novos
+  (endereço, anos de negócio/experiência, telefone opcional, nº de
+  empregados) entram em colunas novas e nullable de `businesses` (migração
+  aditiva), preenchidas num **segundo passo** via `PUT /v1/businesses/me`, não
+  na criação. Isso preserva o endpoint de criação já revisado/testado da
+  Etapa 4 intacto.
+- Front: tela nova (`BusinessDetailsForm`) aparece logo depois da criação do
+  negócio (nome+setor) e antes do DRE. `routeAfterAuth` trata
+  `business.addressLine1 === null` como "onboarding de negócio incompleto" —
+  mesmo padrão de detecção usado pra perfil-cliente/negócio inexistentes.
+- **Autofill "mesmo endereço da residência"**: checkbox que copia
+  `addressLine1/2/city/state/zipCode` do `customer_profile` (tarefa 4) pros
+  campos do negócio, e trava esses campos como somente-leitura enquanto
+  marcado (desmarcar libera edição de novo, sem apagar o que já tinha).
+- Reusei a mesma constante `US_STATES`/`US_STATE_CODES` de `shared-types` (da
+  tarefa 4) pra validar o estado do endereço do negócio — mesmo padrão, sem
+  duplicar a lista.
+- `phone` é o único campo opcional aqui (nullable, "(opcional)" no pedido);
+  `yearsInBusiness`, `yearsOfIndustryExperience` e `numberOfEmployees` são
+  inteiros não-negativos obrigatórios.
+- **Trava de 1-negócio-por-usuário continua intacta** — `PUT /me` só edita o
+  negócio já existente do usuário autenticado (404 se não existir ainda), não
+  cria nada novo. Não toquei na lógica de criação/409 da Etapa 4.
+
+Testado com curl real:
+- negócio recém-criado tem todos os campos novos `null` (confirma que a
+  criação da Etapa 4 continua igual)
+- `PUT /me` com `state` inválido → 400
+- `PUT /me` válido, sem telefone → 200, `phone: null` salvo corretamente
+- `PUT /me` sem negócio existente ainda (usuário diferente) → 404
 - dado de teste limpo do banco ao final
