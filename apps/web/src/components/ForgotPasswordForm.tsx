@@ -28,7 +28,9 @@ export function ForgotPasswordForm({ onBackToLogin }: { onBackToLogin: () => voi
         <h1>Verifique seu email</h1>
         <p>Se <strong>{email}</strong> estiver cadastrado, enviamos um link para redefinir sua senha.</p>
         <p className="help">
-          Ambiente de desenvolvimento: o envio de email é um stub — o link aparece no log do servidor.
+          Ambiente de desenvolvimento: o email sai de verdade via Ethereal, um provedor de teste — não
+          chega numa caixa de entrada real. O link aparece no log do servidor, junto com um link de
+          preview para inspecionar a mensagem.
         </p>
         <button className="link" type="button" onClick={onBackToLogin}>
           Voltar para o login

@@ -24,6 +24,7 @@ export const SESSION_COOKIE_NAME = 'session'
 export interface SessionUser {
   id: string
   email: string
+  twoFactorEnabled: boolean
 }
 
 export interface SessionValidationResult {
@@ -66,6 +67,7 @@ export async function validateSessionToken(token: string): Promise<SessionValida
       expiresAt: sessions.expiresAt,
       isTwoFactorSession: sessions.isTwoFactorSession,
       userEmail: users.email,
+      userTwoFactorEnabled: users.twoFactorEnabled,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -94,7 +96,7 @@ export async function validateSessionToken(token: string): Promise<SessionValida
 
   return {
     session: { id: row.sessionId, userId: row.userId, expiresAt },
-    user: { id: row.userId, email: row.userEmail },
+    user: { id: row.userId, email: row.userEmail, twoFactorEnabled: row.userTwoFactorEnabled },
   }
 }
 

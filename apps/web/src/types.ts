@@ -1,6 +1,11 @@
 export interface User {
   id: string
   email: string
+  // Só GET /auth/me garante esse campo — login/signup/verify-email/
+  // reset-password retornam um User mais enxuto no backend (não incluem
+  // twoFactorEnabled). SecuritySettings sempre busca o estado real via
+  // me(), não confia num User recebido de outro endpoint pra isso.
+  twoFactorEnabled?: boolean
 }
 
 export type MaritalStatus = 'single' | 'married' | 'divorced' | 'widowed' | 'separated'
