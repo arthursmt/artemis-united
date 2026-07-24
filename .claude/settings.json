@@ -1,6 +1,13 @@
 {
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" auth status*)",
+      "Bash(gh auth status*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr view*)"
+    ]
   },
   "askUserQuestionTimeout": "60s"
 }
