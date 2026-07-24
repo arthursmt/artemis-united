@@ -15,13 +15,22 @@ export function AuthForm({
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const passwordsMismatch = mode === 'signup' && confirmPassword.length > 0 && password !== confirmPassword
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError('As senhas não coincidem.')
+      return
+    }
+
     setSubmitting(true)
     try {
       if (mode === 'login') {
@@ -30,7 +39,7 @@ export function AuthForm({
           onAuthenticated(result.user)
         }
       } else {
-        const result = await signup(email, password, acceptedTerms)
+        const result = await signup(email, password, confirmPassword, acceptedTerms)
         if (result) {
           onSignupRequiresVerification(result.user.email)
         }
@@ -70,6 +79,21 @@ export function AuthForm({
           />
         </div>
         {mode === 'signup' && (
+          <div className="field">
+            <label htmlFor="confirm-password">Repetir senha</label>
+            <input
+              id="confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              aria-invalid={passwordsMismatch}
+            />
+            {passwordsMismatch && <span className="error">As senhas não coincidem.</span>}
+          </div>
+        )}
+        {mode === 'signup' && (
           <div className="field field-checkbox">
             <label htmlFor="accepted-terms">
               <input
@@ -83,7 +107,7 @@ export function AuthForm({
             </label>
           </div>
         )}
-        <button className="primary" type="submit" disabled={submitting}>
+        <button className="primary" type="submit" disabled={submitting || passwordsMismatch}>
           {mode === 'login' ? 'Entrar' : 'Criar conta'}
         </button>
       </form>
