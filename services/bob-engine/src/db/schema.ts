@@ -30,6 +30,18 @@ export const assessmentConfidenceLevel = bobSchema.enum('assessment_confidence_l
   'high',
 ])
 
+// Qual limitador venceu no cálculo de recommendedAmount (Fase 4 do reforço
+// de QA — teto de plausibilidade). 'dscr' = capacidade via DSCR-alvo
+// (Seção 3, comportamento original); 'revenue_multiple' = teto por múltiplo
+// de receita mensal (novo, REVENUE_MULTIPLIER_CAP em domain/assessment.ts);
+// 'microloan_ceiling' = teto absoluto do SBA Microloan (US$50.000). Dado de
+// auditoria da recomendação (critério de aceitação 6.1 do plano mestre).
+export const assessmentRecommendationLimiter = bobSchema.enum('assessment_recommendation_limiter', [
+  'dscr',
+  'revenue_multiple',
+  'microloan_ceiling',
+])
+
 // Identifica o negocio avaliado por businessId, sem FK para o schema "app"
 // (apps/api): bob-engine e isolado e nao deve depender de outro servico.
 export const assessments = bobSchema.table('assessments', {
@@ -59,6 +71,9 @@ export const assessments = bobSchema.table('assessments', {
   // sem recalcular via runAssessment.
   exceedsMicroloanCeiling: boolean('exceeds_microloan_ceiling'),
   marginSanityTriggered: boolean('margin_sanity_triggered'),
+  // Nullable pelo mesmo motivo das colunas de cima: linhas criadas antes desta
+  // migração (nenhuma em produção — projeto pré-lançamento) ficam null.
+  recommendationLimiter: assessmentRecommendationLimiter('recommendation_limiter'),
   sectorFound: boolean('sector_found'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
