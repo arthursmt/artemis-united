@@ -270,6 +270,7 @@ function App() {
           }
           setView({ name: 'dashboard' })
         }}
+        onCancel={() => setView({ name: 'dashboard' })}
       />
     )
   }
