@@ -22,7 +22,8 @@
     "express": "^4.21.1",
     "express-async-errors": "^3.1.1",
     "nodemailer": "^9.0.3",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "resend": "^6.18.0"
   },
   "devDependencies": {
     "@artemis-united/config": "*",

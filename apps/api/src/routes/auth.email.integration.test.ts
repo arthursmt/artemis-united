@@ -205,8 +205,9 @@ describe('2FA por email', () => {
         return cookie
       }
 
-      // Sequencial de propósito — ver teste .skip abaixo sobre por que dois
-      // códigos concorrentes (mesmo usuário) não são suportados hoje.
+      // Sequencial de propósito — ver testes abaixo sobre por que dois
+      // códigos concorrentes (mesmo usuário) não são suportados por desenho
+      // (decisão confirmada: um código por usuário, não por dispositivo).
       const cookieA = await completeLogin()
       const cookieB = await completeLogin()
 
@@ -220,24 +221,72 @@ describe('2FA por email', () => {
     EMAIL_TEST_TIMEOUT_MS * 2,
   )
 
-  // PENDENTE — não automatizado ainda. Passos que o teste precisaria cobrir:
-  //   1. Device A faz POST /login (agent A, cookie jar próprio) -> recebe
-  //      código A por email, NÃO verifica ainda.
-  //   2. Device B faz POST /login (agent B, cookie jar separado) enquanto o
-  //      código de A ainda está pendente.
-  //   3. Esperado pelo roteiro de QA: cada device deveria conseguir
-  //      verificar com o PRÓPRIO código, sem um invalidar o outro.
-  //
-  // GAP DE MODELAGEM ENCONTRADO ESCREVENDO ESTE TESTE (não é bug óbvio,
-  // não decidido sozinho): auth/twoFactor.ts permite só UM código pendente
-  // por usuário por vez — `createTwoFactorCode` tem cooldown de 60s entre
-  // pedidos, e a criação de um novo código APAGA o anterior antes de
-  // inserir o novo (ver twoFactor.ts). Ou seja, hoje não existem dois
-  // códigos válidos simultâneos pra um mesmo usuário: device B dentro do
-  // cooldown recebe 429; device B depois do cooldown invalida
-  // silenciosamente o código de A. Pode ser intencional (reduz superfície
-  // de tentativa de código por usuário) ou pode ser a causa real de algum
-  // relato de "2FA não funciona no segundo dispositivo" — precisa decisão
-  // do fundador antes de fechar este teste (ver resumo desta sessão).
-  it.skip('dois dispositivos pedindo código de 2FA ao mesmo tempo, cada um com o próprio código — pendente de decisão de produto', () => {})
+  // DECISÃO CONFIRMADA PELO FUNDADOR (ver Log de decisões do plano mestre):
+  // código de 2FA é por USUÁRIO, não por dispositivo/sessão — reduz
+  // superfície de tentativa de código. auth/twoFactor.ts implementa isso via
+  // `createTwoFactorCode`: só um código pendente por vez, cooldown de 60s
+  // entre pedidos, e um novo pedido (depois do cooldown) apaga o anterior
+  // antes de criar o novo.
+  it(
+    'segundo dispositivo pedindo código dentro do cooldown recebe 429 — um código por usuário, não por dispositivo',
+    async () => {
+      const email = await setupTwoFactorUser('2fa-one-per-user')
+
+      const deviceA = await request(app).post('/v1/auth/login').send({ email, password: PASSWORD })
+      expect(deviceA.status).toBe(200)
+      expect(deviceA.body.twoFactorRequired).toBe(true)
+      const codeAInbox = await fetchLatestEmailTo(email)
+      const codeA = extractTwoFactorCode(codeAInbox.text)
+
+      // Device B tenta logar em seguida, ainda dentro do cooldown de 60s —
+      // não recebe um código independente, recebe 429.
+      const deviceB = await request(app).post('/v1/auth/login').send({ email, password: PASSWORD })
+      expect(deviceB.status).toBe(429)
+      expect(deviceB.body.retryAfterSeconds).toBeGreaterThan(0)
+
+      // Código de A continua válido normalmente — B não o afetou.
+      const userId = deviceA.body.userId as string
+      const verifyA = await request(app).post('/v1/auth/verify-2fa').send({ userId, code: codeA })
+      expect(verifyA.status).toBe(200)
+    },
+    EMAIL_TEST_TIMEOUT_MS * 2,
+  )
+
+  it(
+    'depois do cooldown, um novo pedido de código substitui o anterior — código antigo para de funcionar',
+    async () => {
+      const email = await setupTwoFactorUser('2fa-replace-after-cooldown')
+
+      const deviceA = await request(app).post('/v1/auth/login').send({ email, password: PASSWORD })
+      const userId = deviceA.body.userId as string
+      const codeAInbox = await fetchLatestEmailTo(email)
+      const codeA = extractTwoFactorCode(codeAInbox.text)
+
+      // Simula cooldown de 60s decorrido (mesma técnica do teste de cooldown
+      // de 24h acima — evita esperar tempo real dentro do teste).
+      await db
+        .update(twoFactorCodes)
+        .set({ createdAt: new Date(Date.now() - 61_000) })
+        .where(eq(twoFactorCodes.userId, userId))
+
+      const deviceB = await request(app).post('/v1/auth/login').send({ email, password: PASSWORD })
+      expect(deviceB.status).toBe(200)
+      expect(deviceB.body.twoFactorRequired).toBe(true)
+      const codeBInbox = await fetchLatestEmailTo(email)
+      const codeB = extractTwoFactorCode(codeBInbox.text)
+      expect(codeB).not.toBe(codeA)
+
+      // Código de A (device A) foi silenciosamente substituído — deixa de
+      // funcionar, mesmo nunca tendo sido usado. Uma única tentativa de
+      // verify já consome a linha pendente (mesmo comportamento "uso único
+      // por TENTATIVA" do teste de código errado acima) — por isso este
+      // teste só faz UMA chamada a /verify-2fa: tentar o código antigo
+      // primeiro já queimaria a linha que pertence ao código novo, então
+      // "antigo rejeitado" e "novo funciona" não são verificáveis na mesma
+      // chamada em sequência, teriam que ser dois setups independentes.
+      const verifyOldCode = await request(app).post('/v1/auth/verify-2fa').send({ userId, code: codeA })
+      expect(verifyOldCode.status).toBe(400)
+    },
+    EMAIL_TEST_TIMEOUT_MS * 2,
+  )
 })
