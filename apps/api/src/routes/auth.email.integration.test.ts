@@ -1,5 +1,6 @@
 // Testes de integração dos fluxos que dependem de email real (Fase 3 do
-// reforço de QA — confirmação de cadastro e 2FA por login). Batem no app
+// reforço de QA — confirmação de cadastro, 2FA por login e reset de senha).
+// Batem no app
 // Express de verdade (supertest, sem subir porta) + Postgres de dev real +
 // envio real via Ethereal (lib/email/) — não fazem mock de nenhuma dessas
 // três coisas, de propósito: o objetivo é provar que a mensagem
@@ -14,7 +15,7 @@ import request from 'supertest'
 import { eq } from 'drizzle-orm'
 import { createApp } from '../app.js'
 import { db } from '../db/client.js'
-import { emailVerificationTokens, twoFactorCodes, users } from '../db/schema.js'
+import { emailVerificationTokens, passwordResetTokens, twoFactorCodes, users } from '../db/schema.js'
 import { fetchLatestEmailTo } from '../test/etherealInbox.js'
 
 const app = createApp()
@@ -37,6 +38,14 @@ function extractTwoFactorCode(emailText: string): string {
   const match = emailText.match(/(\d{6})/)
   if (!match) {
     throw new Error(`código de 2FA não encontrado no corpo do email: ${emailText}`)
+  }
+  return match[1]
+}
+
+function extractResetToken(emailText: string): string {
+  const match = emailText.match(/\?reset=([\w-]+)/)
+  if (!match) {
+    throw new Error(`link de reset não encontrado no corpo do email: ${emailText}`)
   }
   return match[1]
 }
@@ -104,6 +113,114 @@ describe('confirmação de cadastro por email', () => {
       expect(allowed.status).toBe(200)
     },
     EMAIL_TEST_TIMEOUT_MS,
+  )
+})
+
+describe('reset de senha por email', () => {
+  const NEW_PASSWORD = 'NewTest1234!'
+
+  it(
+    'envia o email de verdade e o link de reset troca a senha (e derruba sessões existentes)',
+    async () => {
+      const email = uniqueEmail('reset')
+      createdEmails.push(email)
+      await signupAndVerify(email)
+
+      // Sessão criada ANTES do reset — usada abaixo pra confirmar que o
+      // reset derruba sessões existentes (auth.ts: invalidateAllUserSessions).
+      const preResetLogin = await request(app).post('/v1/auth/login').send({ email, password: PASSWORD })
+      const preResetCookie = preResetLogin.headers['set-cookie']?.[0]
+      if (!preResetCookie) {
+        throw new Error('login antes do reset não trouxe cookie de sessão')
+      }
+      const meBeforeReset = await request(app).get('/v1/auth/me').set('Cookie', preResetCookie)
+      expect(meBeforeReset.status).toBe(200)
+
+      const forgot = await request(app).post('/v1/auth/forgot-password').send({ email })
+      expect(forgot.status).toBe(200)
+
+      const inbox = await fetchLatestEmailTo(email)
+      const token = extractResetToken(inbox.text)
+
+      const reset = await request(app).post('/v1/auth/reset-password').send({ token, newPassword: NEW_PASSWORD })
+      expect(reset.status).toBe(200)
+      expect(reset.body.user.email).toBe(email)
+
+      // Sessão de antes do reset não sobrevive à troca de senha.
+      const meAfterReset = await request(app).get('/v1/auth/me').set('Cookie', preResetCookie)
+      expect(meAfterReset.status).toBe(401)
+
+      // Senha antiga não funciona mais; a nova funciona.
+      const loginOldPassword = await request(app).post('/v1/auth/login').send({ email, password: PASSWORD })
+      expect(loginOldPassword.status).toBe(401)
+
+      const loginNewPassword = await request(app).post('/v1/auth/login').send({ email, password: NEW_PASSWORD })
+      expect(loginNewPassword.status).toBe(200)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'não revela se o email existe: resposta genérica e nenhum email enviado para conta inexistente',
+    async () => {
+      const nonExistentEmail = uniqueEmail('reset-nonexistent')
+      // Não entra em createdEmails — nenhuma conta chega a existir.
+
+      const forgot = await request(app).post('/v1/auth/forgot-password').send({ email: nonExistentEmail })
+      expect(forgot.status).toBe(200)
+      expect(forgot.body.message).toMatch(/if that email is registered/)
+
+      // Sem conta, não há o que ter enviado — confirma ausência em vez de
+      // assumir silenciosamente (poll curto, já que é uma prova de negativa).
+      await expect(fetchLatestEmailTo(nonExistentEmail, 3_000)).rejects.toThrow()
+    },
+    10_000,
+  )
+
+  it(
+    'token de reset expirado é rejeitado mesmo sendo o token certo',
+    async () => {
+      const email = uniqueEmail('reset-expired')
+      createdEmails.push(email)
+      await signupAndVerify(email)
+
+      await request(app).post('/v1/auth/forgot-password').send({ email }).expect(200)
+      const inbox = await fetchLatestEmailTo(email)
+      const token = extractResetToken(inbox.text)
+
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email))
+      await db
+        .update(passwordResetTokens)
+        .set({ expiresAt: new Date(Date.now() - 1_000) })
+        .where(eq(passwordResetTokens.userId, user.id))
+
+      const reset = await request(app).post('/v1/auth/reset-password').send({ token, newPassword: NEW_PASSWORD })
+      expect(reset.status).toBe(400)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'um novo pedido de reset invalida o link anterior (só o mais recente funciona)',
+    async () => {
+      const email = uniqueEmail('reset-superseded')
+      createdEmails.push(email)
+      await signupAndVerify(email)
+
+      await request(app).post('/v1/auth/forgot-password').send({ email }).expect(200)
+      const firstInbox = await fetchLatestEmailTo(email)
+      const firstToken = extractResetToken(firstInbox.text)
+
+      // Segundo pedido — createPasswordResetToken (auth/passwordReset.ts)
+      // apaga o token anterior do usuário antes de criar o novo.
+      await request(app).post('/v1/auth/forgot-password').send({ email }).expect(200)
+
+      const firstAttempt = await request(app)
+        .post('/v1/auth/reset-password')
+        .send({ token: firstToken, newPassword: NEW_PASSWORD })
+      expect(firstAttempt.status).toBe(400)
+    },
+    EMAIL_TEST_TIMEOUT_MS * 2,
   )
 })
 

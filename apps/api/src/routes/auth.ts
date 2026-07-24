@@ -336,7 +336,7 @@ authRouter.post('/forgot-password', async (req, res) => {
   const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.email, normalizedEmail))
 
   // Resposta genérica sempre — não revela se o email existe ou não (evita
-  // enumeração de contas). Só envia o email (stub) se o usuário existir de
+  // enumeração de contas). Só envia o email se o usuário existir de
   // verdade.
   if (user) {
     const resetToken = generateResetToken()
