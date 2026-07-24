@@ -187,7 +187,7 @@ Não pesquisados por prioridade/tempo, mas prováveis de aparecer no cadastro da
    - Gatilho de sanity-check de margem (item 1 acima) → desce um nível (`high`→`medium`, `medium`→`low`), tradução direta do "-2" original agora que a escala é ordinal de 3 níveis, não numérica de 10.
 7. **Teto de plausibilidade por múltiplo de receita + teto absoluto de microloan** (adicionado após achado da rodada de QA da Etapa 5 — DSCR-alvo sozinho não tem limitador por escala de receita, nenhum credor real usa DSCR como único limitador). `recommendedAmount` passa a ser o **menor** entre três candidatos:
    - Capacidade via DSCR-alvo (item 2 acima, fórmula da Seção 3 inalterada);
-   - `REVENUE_MULTIPLIER_CAP` × receita mensal consolidada — parâmetro configurável em `domain/assessment.ts`, **ponto de partida 2x, não decisão fechada** (ver tabela de benchmark abaixo);
+   - `REVENUE_MULTIPLIER_CAP` × receita mensal consolidada — parâmetro configurável em `domain/assessment.ts`, **2x confirmado pelo fundador** (ver tabela de benchmark abaixo, e Log de decisões do plano mestre);
    - Teto absoluto do SBA Microloan, US$50.000 (item 4 acima).
 
    Benchmark de mercado usado como referência (credores reais dos EUA, 2026):
@@ -199,7 +199,7 @@ Não pesquisados por prioridade/tempo, mas prováveis de aparecer no cadastro da
    | MCA | Exige piso de ~US$10.000–15.000/mês de receita para elegibilidade |
    | SBA Microloan | Teto de US$50.000; média nacional real de US$16.131 (FY2025) |
 
-   2x é o limite superior da faixa de term loan (a mais generosa das quatro) — calibração fina do valor exato fica para quando houver dado real de uso, mesma lógica do item 6 acima. Quando um destes dois tetos novos é o limitador ativo, `confidence_level` desce um nível, mesmo padrão do item 6. O campo `recommendationLimiter` (`dscr` | `revenue_multiple` | `microloan_ceiling`) registra qual dos três venceu, para auditoria da recomendação (critério de aceitação 6.1 do plano mestre).
+   2x é o limite superior da faixa de term loan (a mais generosa das quatro) — permanece parametrizado (não hardcoded inline) para facilitar recalibração futura com dado real de uso, não porque o valor esteja em aberto. Quando um destes dois tetos novos é o limitador ativo, `confidence_level` desce um nível, mesmo padrão do item 6. O campo `recommendationLimiter` (`dscr` | `revenue_multiple` | `microloan_ceiling`) registra qual dos três venceu, para auditoria da recomendação (critério de aceitação 6.1 do plano mestre).
 
 ---
 

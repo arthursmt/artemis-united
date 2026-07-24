@@ -29,16 +29,16 @@ const MARGIN_SANITY_THRESHOLD_PP = 0.1
 // real usa DSCR como único limitador (ver Fase 4 do reforço de QA desta
 // sessão, achado no cenário revenue=$6.000/mês).
 //
-// PONTO DE PARTIDA PARAMETRIZADO, NÃO DECISÃO FECHADA — valor exato de 2x
-// pendente de confirmação do fundador. Faixa de mercado usada como
-// referência (benchmark de credores reais dos EUA, 2026):
+// Valor de 2x CONFIRMADO pelo fundador (ver Log de decisões do plano
+// mestre) — permanece parametrizado (não hardcoded inline) para facilitar
+// recalibração futura com dado real de uso, não porque o valor em si esteja
+// em aberto. Faixa de mercado usada como referência (benchmark de credores
+// reais dos EUA, 2026):
 //   - Empréstimo a prazo (term loan): 1x – 2x a receita bruta mensal
 //   - Linha de crédito: 10% – 30% da receita mensal
 //   - MCA: exige piso de ~US$10.000–15.000/mês de receita para elegibilidade
 //   - SBA Microloan: teto de US$50.000; média nacional real de US$16.131 (FY2025)
-// 2x é o limite SUPERIOR da faixa de term loan (a mais generosa das quatro)
-// — escolhido como ponto de partida deliberadamente conservador-alto, não
-// como calibração fina.
+// 2x é o limite SUPERIOR da faixa de term loan (a mais generosa das quatro).
 export const REVENUE_MULTIPLIER_CAP = 2
 
 export type RecommendationLimiter = 'dscr' | 'revenue_multiple' | 'microloan_ceiling'
