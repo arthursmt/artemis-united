@@ -36,6 +36,13 @@
       "when": 1784671695055,
       "tag": "0004_brave_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784890910110,
+      "tag": "0005_lethal_ikaris",
+      "breakpoints": true
     }
   ]
 }

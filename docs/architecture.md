@@ -114,3 +114,15 @@ A tabela `assessments` precisa, além de `business_id`/`status`/`requested_amoun
 - `confidence_level` (numeric ou enum low/medium/high, nullable até completed) — completude dos dados informados
 
 **Correção obrigatória**: `currency` deve ter default `'USD'`, não `'BRL'` — mercado é EUA (NY/Miami), não Brasil.
+
+**Atualização (reforço de QA da Etapa 5 — teto de plausibilidade)**: `bob.assessments` ganhou a coluna `recommendation_limiter` (enum `dscr` | `revenue_multiple` | `microloan_ceiling`), migração `0005_lethal_ikaris.sql`, aditiva e nullable — aplicada no Postgres de **dev local** nesta sessão. **Não aplicada em nenhum ambiente de produção** (o projeto ainda não tem um). Indica qual dos três limitadores de `recommendedAmount` venceu no cálculo — ver `docs/bob-engine-parametros-setoriais.md` Seção 7 item 7 e `services/bob-engine/src/domain/assessment.ts`.
+
+---
+
+## Envio de email — `apps/api/src/lib/email/` (reforço de QA da Etapa 5)
+
+Os três fluxos que dependem de email (confirmação de cadastro/reenvio, 2FA por login/reenvio, reset de senha) usam a interface `EmailProvider` (`send(message): Promise<void>`), não o SDK de um provedor específico direto nos call-sites de `routes/auth.ts`.
+
+- **Dev/staging**: `EtherealEmailProvider` — conta de teste criada por API (`nodemailer.createTestAccount()`), sem cadastro manual nem token de terceiro configurado. Envio real via SMTP, inspecionável por preview URL (logada em cada `email.sent`) ou via IMAP (usado pelos testes de integração).
+- **Produção**: **não decidido ainda** — decisão de infra em aberto, não uma lacuna de implementação. Ver Log de decisões do plano mestre para a nota de opções levantadas (SendGrid/Resend/Postmark/SES) quando essa entrada for adicionada.
+- Falha de envio nunca bloqueia o fluxo de auth que a disparou (best-effort, vira log estruturado `email.send_failed`) — a conta/código/token já foi persistido antes do envio ser tentado; os endpoints de reenvio existem para dar uma segunda chance.

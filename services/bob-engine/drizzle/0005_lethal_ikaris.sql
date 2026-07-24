@@ -1,0 +1,2 @@
+CREATE TYPE "bob"."assessment_recommendation_limiter" AS ENUM('dscr', 'revenue_multiple', 'microloan_ceiling');--> statement-breakpoint
+ALTER TABLE "bob"."assessments" ADD COLUMN "recommendation_limiter" "bob"."assessment_recommendation_limiter";

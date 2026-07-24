@@ -20,6 +20,29 @@ const MICROLOAN_CEILING = 50_000 // Seção 4.2
 // em pontos percentuais. Não especificado na fonte, valor proposto e aprovado.
 const MARGIN_SANITY_THRESHOLD_PP = 0.1
 
+// Teto de plausibilidade por múltiplo de receita mensal — segunda camada de
+// limitação da capacidade de dívida, POR CIMA do resultado do DSCR-alvo
+// (Seção 3, fórmula não alterada). Existe porque DSCR sozinho não tem
+// limitador por escala de receita: um negócio com custo/dívida perto de
+// zero pode passar num DSCR-alvo baixo e ainda assim gerar uma
+// recomendação de vários múltiplos do próprio faturamento — nenhum credor
+// real usa DSCR como único limitador (ver Fase 4 do reforço de QA desta
+// sessão, achado no cenário revenue=$6.000/mês).
+//
+// PONTO DE PARTIDA PARAMETRIZADO, NÃO DECISÃO FECHADA — valor exato de 2x
+// pendente de confirmação do fundador. Faixa de mercado usada como
+// referência (benchmark de credores reais dos EUA, 2026):
+//   - Empréstimo a prazo (term loan): 1x – 2x a receita bruta mensal
+//   - Linha de crédito: 10% – 30% da receita mensal
+//   - MCA: exige piso de ~US$10.000–15.000/mês de receita para elegibilidade
+//   - SBA Microloan: teto de US$50.000; média nacional real de US$16.131 (FY2025)
+// 2x é o limite SUPERIOR da faixa de term loan (a mais generosa das quatro)
+// — escolhido como ponto de partida deliberadamente conservador-alto, não
+// como calibração fina.
+export const REVENUE_MULTIPLIER_CAP = 2
+
+export type RecommendationLimiter = 'dscr' | 'revenue_multiple' | 'microloan_ceiling'
+
 export interface MonthlyFinancials {
   revenue: number
   directCosts: number
@@ -38,6 +61,7 @@ export interface AssessmentResult {
   dscrTarget: number
   monthlyNewDebtCapacity: number
   recommendedAmount: number
+  recommendationLimiter: RecommendationLimiter
   exceedsMicroloanCeiling: boolean
   marginSanityTriggered: boolean
   confidenceLevel: ConfidenceLevel
@@ -76,16 +100,16 @@ function marginDistanceFromRange(margin: number, range: readonly [number, number
 // fraca + penalidade do sanity-check) foi aprovada nessa forma; a tradução abaixo é
 // mecânica: forte->high, padrão->medium, fraca/fallback->low, e o "ajuste -2" da
 // proposta original vira "descer um degrau" (high->medium->low, low permanece low).
-function computeConfidenceLevel(
-  sector: SectorProfile | undefined,
-  marginSanityTriggered: boolean,
-): ConfidenceLevel {
+// `downgrades` conta quantos gatilhos independentes de sanity-check dispararam
+// (margem fora da faixa do setor — Seção 7 item 1 — e, agora, teto de
+// plausibilidade ativo — Fase 4 do reforço de QA) — cada um desce um degrau,
+// empilhando se mais de um disparar ao mesmo tempo.
+function computeConfidenceLevel(sector: SectorProfile | undefined, downgrades: number): ConfidenceLevel {
   const tier = sector?.confidenceTier ?? 'fraca' // sem sector = fallback, mesmo patamar da fonte fraca
   let level: ConfidenceLevel = tier === 'forte' ? 'high' : tier === 'padrao' ? 'medium' : 'low'
 
-  if (marginSanityTriggered) {
-    if (level === 'high') level = 'medium'
-    else level = 'low'
+  for (let i = 0; i < downgrades; i++) {
+    level = level === 'high' ? 'medium' : 'low'
   }
 
   return level
@@ -106,15 +130,54 @@ export function runAssessment(sectorSlug: string, monthly: MonthlyFinancials): A
   const noi = businessResult + personalBalance
   const dscrTarget = computeDscrTarget(sector)
   const monthlyNewDebtCapacity = noi / dscrTarget - monthly.currentDebtService
-  const recommendedAmount = monthlyCapacityToPrincipal(monthlyNewDebtCapacity)
-  const exceedsMicroloanCeiling = recommendedAmount > MICROLOAN_CEILING
+
+  // Capacidade via DSCR-alvo (fórmula da Seção 3, não alterada aqui) é o
+  // ponto de partida — mas sozinha não tem limitador por escala de receita.
+  // A recomendação final é o MENOR entre os três: (a) DSCR, (b) múltiplo de
+  // receita mensal (novo, ver REVENUE_MULTIPLIER_CAP acima), (c) teto
+  // absoluto do produto de crédito mais realista pro ICP (SBA Microloan).
+  // `exceedsMicroloanCeiling` mede o valor (a) SEM os tetos, de propósito —
+  // ver comentário abaixo, perto de onde é calculado.
+  const dscrAmount = monthlyCapacityToPrincipal(monthlyNewDebtCapacity)
+  const revenueMultipleAmount = monthly.revenue * REVENUE_MULTIPLIER_CAP
+  const microloanCeilingAmount = MICROLOAN_CEILING
+
+  let recommendedAmount = dscrAmount
+  let recommendationLimiter: RecommendationLimiter = 'dscr'
+  if (revenueMultipleAmount < recommendedAmount) {
+    recommendedAmount = revenueMultipleAmount
+    recommendationLimiter = 'revenue_multiple'
+  }
+  if (microloanCeilingAmount < recommendedAmount) {
+    recommendedAmount = microloanCeilingAmount
+    recommendationLimiter = 'microloan_ceiling'
+  }
+
+  // Continua medindo o valor (a) SEM nenhum teto aplicado — não
+  // `recommendedAmount > MICROLOAN_CEILING`, que depois do teto (c) acima
+  // nunca mais seria verdadeiro (recommendedAmount passa a ser sempre
+  // <= MICROLOAN_CEILING por construção). Preserva o sentido original do
+  // sinal ("o DSCR sozinho pediria mais do que um microloan cobre") sem
+  // ficar redundante com `recommendationLimiter === 'microloan_ceiling'`:
+  // quando este flag é true, um dos dois tetos necessariamente entrou em
+  // ação (dscrAmount > MICROLOAN_CEILING implica microloanCeilingAmount <
+  // recommendedAmount original, então o min() abaixo dele nunca deixa
+  // passar); quando é false, nenhum teto precisava agir por causa do DSCR.
+  const exceedsMicroloanCeiling = dscrAmount > MICROLOAN_CEILING
 
   const margin = monthly.revenue !== 0 ? noi / monthly.revenue : 0
   const marginSanityTriggered = sector
     ? marginDistanceFromRange(margin, sector.netMarginRange) > MARGIN_SANITY_THRESHOLD_PP
     : false // sem parâmetro de setor, não há faixa para comparar — regra de fallback
 
-  const confidenceLevel = computeConfidenceLevel(sector, marginSanityTriggered)
+  // Mesmo padrão do sanity-check de margem (Seção 7 item 6): quando um teto
+  // de plausibilidade novo (revenue_multiple ou microloan_ceiling) é o
+  // limitador ativo, a confiança desce um degrau — o DSCR sozinho "queria"
+  // recomendar mais do que o teto permitiu, sinal de que o número final é
+  // menos direto do que o cálculo padrão.
+  const capLimiterTriggered = recommendationLimiter !== 'dscr'
+  const downgrades = Number(marginSanityTriggered) + Number(capLimiterTriggered)
+  const confidenceLevel = computeConfidenceLevel(sector, downgrades)
 
   return {
     sectorSlug,
@@ -123,6 +186,7 @@ export function runAssessment(sectorSlug: string, monthly: MonthlyFinancials): A
     dscrTarget,
     monthlyNewDebtCapacity,
     recommendedAmount,
+    recommendationLimiter,
     exceedsMicroloanCeiling,
     marginSanityTriggered,
     confidenceLevel,

@@ -50,6 +50,7 @@ assessmentsRouter.get('/latest', async (req, res) => {
     score: row.score,
     exceedsMicroloanCeiling: row.exceedsMicroloanCeiling,
     marginSanityTriggered: row.marginSanityTriggered,
+    recommendationLimiter: row.recommendationLimiter,
     sectorFound: row.sectorFound,
     noi: toNullableNumber(row.noi),
     dscrTarget: toNullableNumber(row.dscrTarget),
@@ -140,6 +141,7 @@ assessmentsRouter.post('/', async (req, res) => {
       businessId: parsed.businessId,
       sectorSegment: parsed.sectorSegment,
       recommendedAmount: result.recommendedAmount,
+      recommendationLimiter: result.recommendationLimiter,
     })
   }
 
@@ -166,6 +168,7 @@ assessmentsRouter.post('/', async (req, res) => {
       monthlyNewDebtCapacity: result.monthlyNewDebtCapacity.toString(),
       exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
       marginSanityTriggered: result.marginSanityTriggered,
+      recommendationLimiter: result.recommendationLimiter,
       sectorFound: result.sectorFound,
     })
     .returning()
@@ -182,6 +185,7 @@ assessmentsRouter.post('/', async (req, res) => {
     score: row.score,
     exceedsMicroloanCeiling: result.exceedsMicroloanCeiling,
     marginSanityTriggered: result.marginSanityTriggered,
+    recommendationLimiter: result.recommendationLimiter,
     sectorFound: result.sectorFound,
     noi: result.noi,
     dscrTarget: result.dscrTarget,
