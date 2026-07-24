@@ -43,6 +43,10 @@ export function me(): Promise<{ user: User } | undefined> {
   return apiFetch('/auth/me')
 }
 
+export function toggleTwoFactor(enabled: boolean): Promise<{ twoFactorEnabled: boolean } | undefined> {
+  return apiFetch('/auth/two-factor/toggle', { method: 'POST', body: JSON.stringify({ enabled }) })
+}
+
 export function logout(): Promise<undefined> {
   return apiFetch('/auth/logout', { method: 'POST' })
 }
