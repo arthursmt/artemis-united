@@ -43,6 +43,29 @@ describe('runAssessment — teto de plausibilidade por múltiplo de receita e mi
     expect(result.exceedsMicroloanCeiling).toBe(false)
   })
 
+  it('segundo setor (oficina_mecanica, risco padrão): DSCR-alvo segmentado por setor continua sendo aplicado corretamente, não é hardcoded pro cenário já testado', () => {
+    // Fase 1 do reforço de QA — o teste acima só cobre restaurante_full_service
+    // (riskTier 'alto', dscrTarget=1,35). oficina_mecanica tem riskTier
+    // 'padrao' (sem o ajuste de +0,1 do Eixo A), dscrTarget=1,25 — se a
+    // segmentação por setor (Seção 5 do documento de parâmetros) estivesse
+    // hardcoded ou quebrada, o dscrTarget abaixo não bateria com o valor
+    // esperado do setor.
+    const result = runAssessment('oficina_mecanica', {
+      revenue: 40_000,
+      directCosts: 20_500,
+      operatingExpenses: 15_000,
+      currentDebtService: 2_100,
+      personalExtraIncome: 0,
+      personalExpenses: 1_000,
+    })
+
+    expect(result.dscrTarget).toBeCloseTo(1.25, 5) // riskTier 'padrao', sem ajuste de risco
+    expect(result.recommendationLimiter).toBe('dscr')
+    expect(result.recommendedAmount).toBeLessThan(50_000)
+    expect(result.recommendedAmount).toBeLessThan(40_000 * 2)
+    expect(result.marginSanityTriggered).toBe(false) // margem 8,75%, dentro da faixa do setor [6%-20%]
+  })
+
   it('receita alta com folga grande de caixa: DSCR pede mais que o microloan cobre — exceedsMicroloanCeiling dispara e o teto (c) assume', () => {
     const result = runAssessment('restaurante_full_service', {
       revenue: 50_000,
