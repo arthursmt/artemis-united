@@ -124,5 +124,14 @@ A tabela `assessments` precisa, além de `business_id`/`status`/`requested_amoun
 Os três fluxos que dependem de email (confirmação de cadastro/reenvio, 2FA por login/reenvio, reset de senha) usam a interface `EmailProvider` (`send(message): Promise<void>`), não o SDK de um provedor específico direto nos call-sites de `routes/auth.ts`.
 
 - **Dev/staging**: `EtherealEmailProvider` — conta de teste criada por API (`nodemailer.createTestAccount()`), sem cadastro manual nem token de terceiro configurado. Envio real via SMTP, inspecionável por preview URL (logada em cada `email.sent`) ou via IMAP (usado pelos testes de integração).
-- **Produção**: **não decidido ainda** — decisão de infra em aberto, não uma lacuna de implementação. Ver Log de decisões do plano mestre para a nota de opções levantadas (SendGrid/Resend/Postmark/SES) quando essa entrada for adicionada.
+- **Produção**: **Resend** (decisão #45), implementado em `ResendEmailProvider` — seleção automática por presença de `RESEND_API_KEY` (sem a chave, cai pra Ethereal). Chave ainda não configurada no `.env` real (`RESEND_API_KEY` fica em standby até a conta ser criada pelo fundador) — código pronto, só falta a credencial.
+
+---
+
+## Pendências e achados abertos (reforço de QA, 2026-07-24)
+
+- **Migrações fora do dev local**: ver `MIGRATIONS_PENDING.md` (raiz do repo) — lista consolidada, nenhuma aplicada fora do Postgres de dev.
+- **PII em logs estruturados**: `apps/api` e `bob-engine` logam email em claro e valor exato de `recommendedAmount`/`businessId` via `console.log`, sem redação — só os eventos PostHog (`@artemis-united/analytics`) têm essa proteção (decisão #36). Ver seção 2.4 do plano mestre ("Status real") para o detalhe completo do modelo de ameaças auditado.
+- **Rate limiting / HSTS**: nenhum dos dois está implementado (seção 2.4 do plano mestre).
+- **DRE wizard**: decisões #27/#34 descrevem 6 blocos com salvamento parcial; implementação real (`DreForm.tsx`) é um formulário único. Ver nota na seção 4.5 do plano mestre.
 - Falha de envio nunca bloqueia o fluxo de auth que a disparou (best-effort, vira log estruturado `email.send_failed`) — a conta/código/token já foi persistido antes do envio ser tentado; os endpoints de reenvio existem para dar uma segunda chance.
