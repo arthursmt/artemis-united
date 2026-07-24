@@ -6,7 +6,9 @@
       "Bash(gh auth status*)",
       "Bash(gh pr list*)",
       "Bash(gh pr create*)",
-      "Bash(gh pr view*)"
+      "Bash(gh pr view*)",
+      "Bash(npm --prefix * run *)",
+      "Bash(npm run *)"
     ]
   },
   "askUserQuestionTimeout": "60s"
