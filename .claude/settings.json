@@ -8,7 +8,8 @@
       "Bash(gh pr create*)",
       "Bash(gh pr view*)",
       "Bash(npm --prefix * run *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(bash scripts/with-env.sh *)"
     ]
   },
   "askUserQuestionTimeout": "60s"
