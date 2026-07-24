@@ -256,10 +256,61 @@ authRouter.post('/resend-2fa', async (req, res) => {
   res.status(200).json({ sent: true })
 })
 
+// Fase 1 do reforço de QA (2026-07-24) — pedir código de confirmação pra
+// trocar o 2FA quando o usuário já tem 2FA ativo (alternativa à senha, ver
+// /two-factor/toggle logo abaixo). Reaproveita o mesmo mecanismo de código
+// de login (auth/twoFactor.ts) — mesma linha "um código pendente por
+// usuário" já confirmada como intencional (decisão #46): pedir aqui
+// também substitui um código de login pendente, e vice-versa, por
+// desenho, não é um bug novo.
+authRouter.post('/two-factor/request-code', requireAuth, async (req, res) => {
+  const userId = req.user?.id
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' })
+    return
+  }
+
+  const [user] = await db
+    .select({ id: users.id, email: users.email, twoFactorEnabled: users.twoFactorEnabled })
+    .from(users)
+    .where(eq(users.id, userId))
+  if (!user || !user.twoFactorEnabled) {
+    res.status(400).json({ error: 'two-factor authentication is not enabled for this account' })
+    return
+  }
+
+  const code = generateTwoFactorCode()
+  const result = await createTwoFactorCode(user.id, code)
+  if (!result.created) {
+    res.status(429).json({
+      error: 'a code was already sent, please wait before requesting another',
+      retryAfterSeconds: result.retryAfterSeconds,
+    })
+    return
+  }
+
+  await sendEmail({ to: user.email, ...twoFactorCodeEmail(code) })
+  res.status(200).json({ sent: true })
+})
+
+interface ToggleTwoFactorBody {
+  enabled?: unknown
+  password?: unknown
+  code?: unknown
+}
+
 // Tarefa (Configurações — Segurança): liga/desliga 2FA para o usuário
 // autenticado. Por usuário, não por sessão — afeta igualmente todo login
 // futuro desse usuário, em qualquer dispositivo (ver comentário em
 // db/schema.ts sobre a diferença para `sessions.isTwoFactorSession`).
+//
+// Fase 1 do reforço de QA (2026-07-24) — achado de auditoria: este endpoint
+// só checava `requireAuth` (sessão válida), sem exigir NENHUMA prova de
+// posse adicional. Uma sessão sequestrada (cookie roubado, XSS, dispositivo
+// destravado) conseguia desligar o 2FA sem saber a senha nem ter acesso ao
+// email. Corrigido: exige senha atual (sempre disponível) OU código de 2FA
+// atual (só uma opção válida quando o usuário JÁ tem 2FA ativo — não existe
+// código pra provar posse de algo que nunca foi ligado).
 authRouter.post('/two-factor/toggle', requireAuth, async (req, res) => {
   const userId = req.user?.id
   if (!userId) {
@@ -267,15 +318,36 @@ authRouter.post('/two-factor/toggle', requireAuth, async (req, res) => {
     return
   }
 
-  const enabled = (req.body as { enabled?: unknown })?.enabled
-  if (typeof enabled !== 'boolean') {
+  const body = req.body as ToggleTwoFactorBody
+  if (typeof body?.enabled !== 'boolean') {
     res.status(400).json({ error: 'enabled must be a boolean' })
     return
   }
 
-  await db.update(users).set({ twoFactorEnabled: enabled }).where(eq(users.id, userId))
+  const [user] = await db
+    .select({ id: users.id, email: users.email, passwordHash: users.passwordHash, twoFactorEnabled: users.twoFactorEnabled })
+    .from(users)
+    .where(eq(users.id, userId))
+  if (!user) {
+    res.status(401).json({ error: 'Not authenticated' })
+    return
+  }
 
-  res.status(200).json({ twoFactorEnabled: enabled })
+  let verified = false
+  if (typeof body.password === 'string' && body.password !== '') {
+    verified = await verifyPassword(user.passwordHash, body.password)
+  } else if (user.twoFactorEnabled && typeof body.code === 'string' && body.code !== '') {
+    verified = await consumeTwoFactorCode(userId, body.code)
+  }
+
+  if (!verified) {
+    res.status(403).json({ error: 'current password or a valid two-factor code is required to change this setting' })
+    return
+  }
+
+  await db.update(users).set({ twoFactorEnabled: body.enabled }).where(eq(users.id, userId))
+
+  res.status(200).json({ twoFactorEnabled: body.enabled })
 })
 
 // Etapa 5 (plano mestre §4.9/decisão #42) — reenvio de verificação de

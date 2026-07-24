@@ -43,8 +43,17 @@ export function me(): Promise<{ user: User } | undefined> {
   return apiFetch('/auth/me')
 }
 
-export function toggleTwoFactor(enabled: boolean): Promise<{ twoFactorEnabled: boolean } | undefined> {
-  return apiFetch('/auth/two-factor/toggle', { method: 'POST', body: JSON.stringify({ enabled }) })
+// Fase 1 do reforço de QA (2026-07-24): reconfirmação obrigatória — senha
+// atual OU código de 2FA atual (só quando já ativo), nunca os dois vazios.
+export function toggleTwoFactor(
+  enabled: boolean,
+  proof: { password: string } | { code: string },
+): Promise<{ twoFactorEnabled: boolean } | undefined> {
+  return apiFetch('/auth/two-factor/toggle', { method: 'POST', body: JSON.stringify({ enabled, ...proof }) })
+}
+
+export function requestTwoFactorConfirmationCode(): Promise<{ sent: true } | undefined> {
+  return apiFetch('/auth/two-factor/request-code', { method: 'POST' })
 }
 
 export function logout(): Promise<undefined> {
