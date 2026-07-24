@@ -22,6 +22,7 @@ export interface AssessmentView {
   score: string | null
   exceedsMicroloanCeiling: boolean
   marginSanityTriggered: boolean
+  recommendationLimiter: 'dscr' | 'revenue_multiple' | 'microloan_ceiling' | null
   sectorFound: boolean
   noi: number
   dscrTarget: number
