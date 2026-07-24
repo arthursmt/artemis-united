@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { toMoneyBracket, track } from '@artemis-united/analytics'
+import type { SectorSegmentOrOutro } from '@artemis-united/shared-types'
 import { me, verifyEmail } from './api/auth'
 import { getMyBusiness } from './api/businesses'
 import { ApiError } from './api/client'
@@ -252,7 +254,24 @@ function App() {
   }
 
   if (view.name === 'dre-form') {
-    return <DreForm onSubmitted={() => setView({ name: 'dashboard' })} />
+    return (
+      <DreForm
+        onSubmitted={(result) => {
+          // Confidence_level/sectorSegment vêm do bob-engine (ConfidenceLevel
+          // e SectorSegmentOrOutro lá são a fonte da verdade) — a interface
+          // AssessmentView aqui só não preserva o literal type na travessia
+          // HTTP, o valor em runtime já é garantido pelo produtor.
+          if (result.confidenceLevel && result.recommendedAmount !== null) {
+            track('assessment_completed', {
+              confidence_level: result.confidenceLevel as 'low' | 'medium' | 'high',
+              sector_segment: result.sectorSegment as SectorSegmentOrOutro,
+              recommended_amount_bracket: toMoneyBracket(Number(result.recommendedAmount)),
+            })
+          }
+          setView({ name: 'dashboard' })
+        }}
+      />
+    )
   }
 
   if (view.name === 'settings') {
