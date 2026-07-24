@@ -1,16 +1,18 @@
 import { EtherealEmailProvider } from './etherealEmailProvider.js'
+import { ResendEmailProvider } from './resendEmailProvider.js'
 import type { EmailMessage, EmailProvider } from './EmailProvider.js'
 
-// Nenhum provedor de PRODUÇÃO foi escolhido ainda (decisão de infra em
-// aberto, ver docs/architecture.md) — Ethereal é a única implementação hoje,
-// usada em qualquer ambiente. Quando um provedor de produção for decidido,
-// este é o único ponto a mexer para selecionar entre implementações (por
-// NODE_ENV, por exemplo).
+// Resend é o provedor de PRODUÇÃO (decisão fechada, ver Log de decisões do
+// plano mestre). Seleção por presença de credencial, mesmo padrão de
+// SENTRY_DSN/ANTHROPIC_API_KEY: com RESEND_API_KEY configurada, usa Resend;
+// sem ela (dev local, por padrão), cai para Ethereal — nenhum ambiente sem
+// a chave fica sem conseguir enviar/inspecionar email.
 let provider: EmailProvider | null = null
 
 function getEmailProvider(): EmailProvider {
   if (!provider) {
-    provider = new EtherealEmailProvider()
+    const resendApiKey = process.env.RESEND_API_KEY
+    provider = resendApiKey ? new ResendEmailProvider(resendApiKey) : new EtherealEmailProvider()
   }
   return provider
 }
