@@ -95,15 +95,17 @@ Proposta: Cloudflare na frente de tudo (DNS + WAF + proteção DDoS básica, tie
 
 ### 2.4 Modelo de ameaças (proposta inicial, V1)
 
-| Ameaça | Vetor | Mitigação proposta |
-|---|---|---|
-| Credential stuffing / força bruta no login | Login recorrente | Rate limiting por IP+email, bloqueio progressivo, 2FA disponível |
-| Vazamento de dados financeiros em repouso | Breach do banco | Criptografia em repouso (nativa Neon/Postgres), least-privilege de acesso ao DB |
-| Interceptação em trânsito | MITM | TLS obrigatório ponta a ponta, HSTS |
-| Token do Plaid/Open Finance comprometido | Vazamento de credencial de terceiro | Tokens nunca armazenados em texto puro; escopo mínimo de permissão solicitado ao Plaid |
-| Abuso de API por parceiro B2B (futuro) | Uso indevido de API key | Rate limiting + monitoramento de uso por cliente no gateway |
-| Exposição de dado sensível em logs/analytics | Log acidental de PII financeira | Redação automática de campos sensíveis antes de qualquer log ou evento de analytics |
-| Acesso indevido interno (você mesmo, futuro funcionário) | Insider | Acesso a prod restrito, sem acesso direto a dados de produção fora de necessidade operacional |
+> **Status real auditado em 2026-07-24** (Fase 2 do reforço de QA) — coluna adicionada pra registrar o que já foi verificado contra o código, sem mudar a mitigação proposta nem decidir prioridade (isso fica pra decisão do fundador). Detalhe de evidência de cada linha no resumo da sessão.
+
+| Ameaça | Vetor | Mitigação proposta | Status real |
+|---|---|---|---|
+| Credential stuffing / força bruta no login | Login recorrente | Rate limiting por IP+email, bloqueio progressivo, 2FA disponível | 🔴 Ausente — nenhum rate limiting no login; 2FA existe mas é opt-in do usuário, não mitigação automática |
+| Vazamento de dados financeiros em repouso | Breach do banco | Criptografia em repouso (nativa Neon/Postgres), least-privilege de acesso ao DB | ⚪ Não verificável ainda — sem ambiente Neon real provisionado. Em dev, apps/api e bob-engine usam a mesma credencial (sem least-privilege entre serviços) |
+| Interceptação em trânsito | MITM | TLS obrigatório ponta a ponta, HSTS | 🔴 HSTS ausente (nenhum header configurado); TLS em si viria da plataforma quando houver deploy real |
+| Token do Plaid/Open Finance comprometido | Vazamento de credencial de terceiro | Tokens nunca armazenados em texto puro; escopo mínimo de permissão solicitado ao Plaid | ⚪ N/A — Plaid fora do V1 (decisão #13) |
+| Abuso de API por parceiro B2B (futuro) | Uso indevido de API key | Rate limiting + monitoramento de uso por cliente no gateway | ⚪ N/A — sem parceiro B2B/gateway ainda |
+| Exposição de dado sensível em logs/analytics | Log acidental de PII financeira | Redação automática de campos sensíveis antes de qualquer log ou evento de analytics | 🟡 Parcial — implementada só para eventos PostHog (`@artemis-united/analytics`, decisão #36, via tipos exatos). Ausente nos logs estruturados de `apps/api`/`bob-engine` (Better Stack): vazam email em claro (`lib/email/`) e valor exato de `recommendedAmount` + `businessId` (`bob-engine/lib/observability.ts`) |
+| Acesso indevido interno (você mesmo, futuro funcionário) | Insider | Acesso a prod restrito, sem acesso direto a dados de produção fora de necessidade operacional | ⚪ N/A — sem ambiente de produção ainda; pendência de processo, não de código |
 
 ---
 
@@ -163,6 +165,8 @@ Ponto central do produto — é o dado que alimenta o BoB. Proposta com separaç
 **= Saldo Consolidado (Negócio + Pessoal)** — o número que o BoB efetivamente usa para capacidade de pagamento real, não só o resultado do negócio isolado.
 
 Essa jornada fica acessível a qualquer momento via Configurações, como definido.
+
+> **Nota de implementação (Fase 1/5 do reforço de QA, 2026-07-24)**: as decisões #27 e #34 (Log de decisões) descrevem o DRE como wizard de 6 blocos com salvamento parcial. A implementação real (`apps/web/src/components/DreForm.tsx`) é um formulário único com os 6 campos numa tela só, sem navegação por bloco nem salvamento parcial — os campos do formulário mapeiam para o Saldo Consolidado acima (revenue/directCosts/operatingExpenses/currentDebtService/personalExtraIncome/personalExpenses), mas o *fluxo* de wizard não existe. Os eventos `dre_block_completed`/`dre_block_abandoned` (seção 7) também não têm onde disparar por esse motivo. Backend (`financial_statements`) respeita corretamente a regra de nunca sobrescrever (cada submissão é uma linha nova versionada, com teste de regressão desde PR #19) — a lacuna é só no front. Não corrigido nesta sessão (decisão de design/UI fora de escopo) — ver pendências do resumo da sessão.
 
 ### 4.6 Tela inicial (Dashboard)
 Faturamento mês atual, Acumulado ano (receitas), Despesa mês atual, Acumulado ano (despesas), Variações, Saldo — mantidos.
