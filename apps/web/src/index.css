@@ -1,36 +1,29 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --field-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-text: #fff;
+  /* Tokens do sistema de design (plano mestre §5.1/5.4). Sem variante dark
+     definida em nenhuma decisão fechada — a app usa só a paleta abaixo,
+     independente do tema do sistema operacional. */
+  --text: #5c6b7a;
+  --text-h: #14243a;
+  --bg: #fffefa;
+  --border: #e2e6ea;
+  --field-bg: #f7f8fa;
+  --primary: #004783;
+  --secondary: #40a142;
+  --primary-text: #fffefa;
+  --accent: #f8b61a;
+  --accent-text: #004783;
   --danger: #c0392b;
+  --warning: #d98e2e;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
 
   font: 16px/145% var(--sans);
-  color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --field-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-text: #16171d;
-    --danger: #e57373;
-  }
 }
 
 * {

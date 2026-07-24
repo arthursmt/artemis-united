@@ -1,5 +1,10 @@
 /* Estilo mínimo pragmático (decisão da Etapa 4 — não existe DESIGN.md/sistema de
-   design formal ainda; isto é provisório). */
+   design formal ainda; isto é provisório). Cores usam os tokens de
+   `artemis-united-plano-mestre.md` §5.1/5.4 via variáveis em index.css — só
+   um botão genérico existe hoje (button.primary, navy), não os três
+   componentes previstos em §5.4 (button-cta dourado / button-primary /
+   button-success); nenhuma tela atual precisa de um CTA dourado distinto do
+   botão primário comum. */
 
 .field {
   display: flex;
@@ -49,8 +54,8 @@ button.primary {
   padding: 10px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--primary);
+  color: var(--primary-text);
   cursor: pointer;
   width: 100%;
 }
@@ -64,7 +69,7 @@ button.link {
   font: inherit;
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--primary);
   text-decoration: underline;
   cursor: pointer;
   padding: 0;
@@ -146,5 +151,5 @@ button.link {
 .tab.active {
   color: var(--text-h);
   font-weight: 600;
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--primary);
 }
