@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { track } from '@artemis-united/analytics'
-import { changePassword, me, toggleTwoFactor } from '../api/auth'
+import { changePassword, me, requestTwoFactorConfirmationCode, toggleTwoFactor } from '../api/auth'
 import { ApiError } from '../api/client'
 
 export function SecuritySettings() {
@@ -13,7 +13,21 @@ export function SecuritySettings() {
   const [twoFactorLoading, setTwoFactorLoading] = useState(true)
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null)
-  const [twoFactorToggling, setTwoFactorToggling] = useState(false)
+
+  // Fase 1 do reforço de QA (2026-07-24): ligar/desligar 2FA exige
+  // reconfirmação — senha atual sempre, ou um código por email como
+  // alternativa quando o usuário já tem 2FA ativo (não existe código pra
+  // provar posse de algo que nunca foi ligado). `pendingEnabled` é o valor
+  // que o usuário pediu, ainda não confirmado — o checkbox continua
+  // refletindo o estado real do servidor (`twoFactorEnabled`) até a
+  // confirmação ter sucesso.
+  const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmCode, setConfirmCode] = useState('')
+  const [codeRequested, setCodeRequested] = useState(false)
+  const [requestingCode, setRequestingCode] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -35,11 +49,43 @@ export function SecuritySettings() {
     }
   }, [])
 
-  async function handleTwoFactorChange(nextEnabled: boolean) {
-    setTwoFactorError(null)
-    setTwoFactorToggling(true)
+  function startToggle(nextEnabled: boolean) {
+    setPendingEnabled(nextEnabled)
+    setConfirmPassword('')
+    setConfirmCode('')
+    setCodeRequested(false)
+    setConfirmError(null)
+  }
+
+  function cancelToggle() {
+    setPendingEnabled(null)
+    setConfirmPassword('')
+    setConfirmCode('')
+    setCodeRequested(false)
+    setConfirmError(null)
+  }
+
+  async function handleRequestCode() {
+    setConfirmError(null)
+    setRequestingCode(true)
     try {
-      const result = await toggleTwoFactor(nextEnabled)
+      const result = await requestTwoFactorConfirmationCode()
+      if (result) setCodeRequested(true)
+    } catch (err) {
+      setConfirmError(err instanceof ApiError ? err.message : 'Não foi possível enviar o código. Tente de novo.')
+    } finally {
+      setRequestingCode(false)
+    }
+  }
+
+  async function handleConfirmToggle(e: React.FormEvent) {
+    e.preventDefault()
+    if (pendingEnabled === null) return
+    setConfirmError(null)
+    setConfirming(true)
+    try {
+      const proof = confirmCode.trim() !== '' ? { code: confirmCode.trim() } : { password: confirmPassword }
+      const result = await toggleTwoFactor(pendingEnabled, proof)
       if (!result) return
       setTwoFactorEnabled(result.twoFactorEnabled)
       // Só o caminho "ligou" é o evento decidido (seção 7 do plano mestre,
@@ -47,10 +93,11 @@ export function SecuritySettings() {
       if (result.twoFactorEnabled) {
         track('two_factor_enabled', {})
       }
+      cancelToggle()
     } catch (err) {
-      setTwoFactorError(err instanceof ApiError ? err.message : 'Não foi possível atualizar o 2FA. Tente de novo.')
+      setConfirmError(err instanceof ApiError ? err.message : 'Senha ou código incorretos.')
     } finally {
-      setTwoFactorToggling(false)
+      setConfirming(false)
     }
   }
 
@@ -118,8 +165,8 @@ export function SecuritySettings() {
                   id="two-factor-toggle"
                   type="checkbox"
                   checked={twoFactorEnabled}
-                  disabled={twoFactorToggling}
-                  onChange={(e) => void handleTwoFactorChange(e.target.checked)}
+                  disabled={pendingEnabled !== null}
+                  onChange={(e) => startToggle(e.target.checked)}
                 />
                 Pedir um código por email a cada novo login
               </label>
@@ -128,6 +175,62 @@ export function SecuritySettings() {
               Com o 2FA ativo, cada login em um dispositivo novo exige um código enviado por email, além
               da senha.
             </span>
+
+            {pendingEnabled !== null && (
+              <form onSubmit={(e) => void handleConfirmToggle(e)} className="card">
+                <p>
+                  {pendingEnabled
+                    ? 'Confirme sua senha atual pra ativar o 2FA.'
+                    : 'Confirme sua senha atual ou um código por email pra desativar o 2FA.'}
+                </p>
+                {confirmError && <p className="error">{confirmError}</p>}
+                <div className="field">
+                  <label htmlFor="confirm-two-factor-password">Senha atual</label>
+                  <input
+                    id="confirm-two-factor-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value)
+                      setConfirmCode('')
+                    }}
+                    autoComplete="current-password"
+                  />
+                </div>
+                {!pendingEnabled &&
+                  (codeRequested ? (
+                    <div className="field">
+                      <label htmlFor="confirm-two-factor-code">Ou o código recebido por email</label>
+                      <input
+                        id="confirm-two-factor-code"
+                        type="text"
+                        inputMode="numeric"
+                        value={confirmCode}
+                        onChange={(e) => {
+                          setConfirmCode(e.target.value)
+                          setConfirmPassword('')
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      className="link"
+                      type="button"
+                      disabled={requestingCode}
+                      onClick={() => void handleRequestCode()}
+                    >
+                      Ou usar um código por email
+                    </button>
+                  ))}
+                <button className="primary" type="submit" disabled={confirming}>
+                  Confirmar
+                </button>
+                {' · '}
+                <button className="link" type="button" onClick={cancelToggle}>
+                  Cancelar
+                </button>
+              </form>
+            )}
           </>
         )}
       </div>

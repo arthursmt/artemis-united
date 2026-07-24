@@ -232,7 +232,9 @@ describe('2FA por email', () => {
 
     const agent = request.agent(app)
     await agent.post('/v1/auth/login').send({ email, password: PASSWORD }).expect(200)
-    await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true }).expect(200)
+    // Fase 1 do reforço de QA (2026-07-24): toggle exige reconfirmação por
+    // senha — ver describe('toggle de 2FA exige reconfirmação') abaixo.
+    await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD }).expect(200)
 
     return email
   }
@@ -405,5 +407,157 @@ describe('2FA por email', () => {
       expect(verifyOldCode.status).toBe(400)
     },
     EMAIL_TEST_TIMEOUT_MS * 2,
+  )
+})
+
+// Fase 1 do reforço de QA (2026-07-24) — achado de auditoria: o toggle de
+// 2FA só checava sessão válida (requireAuth), sem exigir NENHUMA prova de
+// posse adicional. Uma sessão sequestrada conseguia desligar o 2FA sem
+// saber a senha nem ter acesso ao email. Estes testes cobrem o caso de
+// borda que motivou a correção: toggle sem prova (ou com prova errada) tem
+// que ser rejeitado E não pode alterar o estado no banco.
+describe('toggle de 2FA exige reconfirmação', () => {
+  async function createAuthenticatedAgent(label: string): Promise<{ email: string; agent: ReturnType<typeof request.agent> }> {
+    const email = uniqueEmail(label)
+    createdEmails.push(email)
+    await signupAndVerify(email)
+
+    const agent = request.agent(app)
+    await agent.post('/v1/auth/login').send({ email, password: PASSWORD }).expect(200)
+    return { email, agent }
+  }
+
+  it(
+    'ligar 2FA sem senha é rejeitado e não altera o estado',
+    async () => {
+      const { agent } = await createAuthenticatedAgent('2fa-enable-no-proof')
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true })
+      expect([401, 403]).toContain(res.status)
+
+      const check = await agent.get('/v1/auth/me')
+      expect(check.body.user.twoFactorEnabled).toBe(false)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'ligar 2FA com senha errada é rejeitado e não altera o estado',
+    async () => {
+      const { agent } = await createAuthenticatedAgent('2fa-enable-wrong-password')
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: 'SenhaErrada1!' })
+      expect([401, 403]).toContain(res.status)
+
+      const check = await agent.get('/v1/auth/me')
+      expect(check.body.user.twoFactorEnabled).toBe(false)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'ligar 2FA com senha certa funciona',
+    async () => {
+      const { agent } = await createAuthenticatedAgent('2fa-enable-right-password')
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD })
+      expect(res.status).toBe(200)
+      expect(res.body.twoFactorEnabled).toBe(true)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'desligar 2FA sem senha nem código é rejeitado e não altera o estado',
+    async () => {
+      const { agent } = await createAuthenticatedAgent('2fa-disable-no-proof')
+      await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD }).expect(200)
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: false })
+      expect([401, 403]).toContain(res.status)
+
+      const check = await agent.get('/v1/auth/me')
+      expect(check.body.user.twoFactorEnabled).toBe(true)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'desligar 2FA com senha errada é rejeitado e não altera o estado',
+    async () => {
+      const { agent } = await createAuthenticatedAgent('2fa-disable-wrong-password')
+      await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD }).expect(200)
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: false, password: 'SenhaErrada1!' })
+      expect([401, 403]).toContain(res.status)
+
+      const check = await agent.get('/v1/auth/me')
+      expect(check.body.user.twoFactorEnabled).toBe(true)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'desligar 2FA com senha certa funciona',
+    async () => {
+      const { agent } = await createAuthenticatedAgent('2fa-disable-right-password')
+      await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD }).expect(200)
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: false, password: PASSWORD })
+      expect(res.status).toBe(200)
+      expect(res.body.twoFactorEnabled).toBe(false)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'desligar 2FA com código de confirmação por email funciona (alternativa à senha)',
+    async () => {
+      const { email, agent } = await createAuthenticatedAgent('2fa-disable-code')
+      await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD }).expect(200)
+
+      await agent.post('/v1/auth/two-factor/request-code').expect(200)
+      const inbox = await fetchLatestEmailTo(email)
+      const code = extractTwoFactorCode(inbox.text)
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: false, code })
+      expect(res.status).toBe(200)
+      expect(res.body.twoFactorEnabled).toBe(false)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'desligar 2FA com código errado é rejeitado e não altera o estado',
+    async () => {
+      const { email, agent } = await createAuthenticatedAgent('2fa-disable-wrong-code')
+      await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, password: PASSWORD }).expect(200)
+
+      await agent.post('/v1/auth/two-factor/request-code').expect(200)
+      await fetchLatestEmailTo(email) // garante que o código já foi entregue antes de tentar um errado
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: false, code: '000000' })
+      expect([401, 403]).toContain(res.status)
+
+      const check = await agent.get('/v1/auth/me')
+      expect(check.body.user.twoFactorEnabled).toBe(true)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'um código de 2FA só é aceito como prova se o 2FA já estiver ativo (não dá pra usar código pra LIGAR)',
+    async () => {
+      // Sem 2FA ativo não existe código pendente possível — enviar um code
+      // qualquer no corpo não deveria contornar a exigência de senha.
+      const { agent } = await createAuthenticatedAgent('2fa-enable-code-rejected')
+
+      const res = await agent.post('/v1/auth/two-factor/toggle').send({ enabled: true, code: '000000' })
+      expect([401, 403]).toContain(res.status)
+
+      const check = await agent.get('/v1/auth/me')
+      expect(check.body.user.twoFactorEnabled).toBe(false)
+    },
+    EMAIL_TEST_TIMEOUT_MS,
   )
 })
