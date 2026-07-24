@@ -94,7 +94,16 @@ function computeConfidenceLevel(
 export function runAssessment(sectorSlug: string, monthly: MonthlyFinancials): AssessmentResult {
   const sector = findSector(sectorSlug)
 
-  const noi = monthly.revenue - monthly.directCosts - monthly.operatingExpenses
+  // NOI vem do Saldo Consolidado (negócio + pessoal), não só do resultado do
+  // negócio — decisão fechada na Seção 3 do documento de parâmetros
+  // setoriais e na definição de "Saldo Consolidado" do plano mestre §4.5.
+  // Bug encontrado em teste manual: personalExtraIncome/personalExpenses
+  // eram coletados, validados e persistidos, mas nunca entravam nesta conta
+  // — capacidade de dívida ficava superestimada por ignorar o saldo pessoal
+  // negativo (ex: aluguel/alimentação da família).
+  const businessResult = monthly.revenue - monthly.directCosts - monthly.operatingExpenses
+  const personalBalance = monthly.personalExtraIncome - monthly.personalExpenses
+  const noi = businessResult + personalBalance
   const dscrTarget = computeDscrTarget(sector)
   const monthlyNewDebtCapacity = noi / dscrTarget - monthly.currentDebtService
   const recommendedAmount = monthlyCapacityToPrincipal(monthlyNewDebtCapacity)
