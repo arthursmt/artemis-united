@@ -21,7 +21,7 @@ import {
   validateSessionToken,
 } from '../auth/session.js'
 import { consumeTwoFactorCode, createTwoFactorCode, generateTwoFactorCode } from '../auth/twoFactor.js'
-import { sendStubEmail } from '../lib/emailStub.js'
+import { passwordResetEmail, sendEmail, twoFactorCodeEmail, verificationEmail } from '../lib/email/index.js'
 
 export const authRouter = Router()
 
@@ -104,8 +104,9 @@ authRouter.post('/signup', async (req, res) => {
   // email antes de liberar acesso completo".
   const verificationToken = generateVerificationToken()
   await createEmailVerificationToken(verificationToken, user.id)
-  sendStubEmail(user.email, 'Confirme seu email — Artemis United', {
-    verificationUrl: `${webAppUrl()}/?verify=${verificationToken}`,
+  await sendEmail({
+    to: user.email,
+    ...verificationEmail(`${webAppUrl()}/?verify=${verificationToken}`),
   })
 
   res.status(201).json({ user, verificationRequired: true })
@@ -167,10 +168,10 @@ authRouter.post('/login', async (req, res) => {
 
   // Etapa 5 (plano mestre §4.9/decisão #40): 2FA é opt-in por usuário. Senha
   // certa + 2FA ativo não cria sessão ainda — gera o código, manda por email
-  // (stub) e devolve `twoFactorRequired`. A sessão só nasce em POST
-  // /verify-2fa, e já nasce com `twoFactor: true` (24h rolantes, não os 30
-  // dias padrão). `userId` só é devolvido aqui porque a senha já foi validada
-  // — sem a senha certa, um atacante nunca chega nesta resposta.
+  // e devolve `twoFactorRequired`. A sessão só nasce em POST /verify-2fa, e
+  // já nasce com `twoFactor: true` (24h rolantes, não os 30 dias padrão).
+  // `userId` só é devolvido aqui porque a senha já foi validada — sem a
+  // senha certa, um atacante nunca chega nesta resposta.
   if (user.twoFactorEnabled) {
     const code = generateTwoFactorCode()
     const result = await createTwoFactorCode(user.id, code)
@@ -182,7 +183,7 @@ authRouter.post('/login', async (req, res) => {
       return
     }
 
-    sendStubEmail(user.email, 'Seu código de acesso — Artemis United', { code })
+    await sendEmail({ to: user.email, ...twoFactorCodeEmail(code) })
     res.status(200).json({ twoFactorRequired: true, userId: user.id })
     return
   }
@@ -251,7 +252,7 @@ authRouter.post('/resend-2fa', async (req, res) => {
     return
   }
 
-  sendStubEmail(user.email, 'Seu código de acesso — Artemis United', { code })
+  await sendEmail({ to: user.email, ...twoFactorCodeEmail(code) })
   res.status(200).json({ sent: true })
 })
 
@@ -316,8 +317,9 @@ authRouter.post('/resend-verification', async (req, res) => {
     return
   }
 
-  sendStubEmail(user.email, 'Confirme seu email — Artemis United', {
-    verificationUrl: `${webAppUrl()}/?verify=${verificationToken}`,
+  await sendEmail({
+    to: user.email,
+    ...verificationEmail(`${webAppUrl()}/?verify=${verificationToken}`),
   })
 
   res.status(200).json({ message: 'verification email sent' })
@@ -339,8 +341,9 @@ authRouter.post('/forgot-password', async (req, res) => {
   if (user) {
     const resetToken = generateResetToken()
     await createPasswordResetToken(resetToken, user.id)
-    sendStubEmail(user.email, 'Redefinir sua senha — Artemis United', {
-      resetUrl: `${webAppUrl()}/?reset=${resetToken}`,
+    await sendEmail({
+      to: user.email,
+      ...passwordResetEmail(`${webAppUrl()}/?reset=${resetToken}`),
     })
   }
 

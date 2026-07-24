@@ -35,9 +35,8 @@ export const users = appSchema.table('users', {
 })
 
 // Token de confirmação de email — mesmo padrão de `sessions`: token aleatório
-// entregue ao usuário (via link no email, stub por enquanto — ver
-// lib/emailStub.ts), só o hash SHA-256 fica no banco. Uso único: consumido e
-// apagado na confirmação.
+// entregue ao usuário (via link no email — ver lib/email/), só o hash
+// SHA-256 fica no banco. Uso único: consumido e apagado na confirmação.
 export const emailVerificationTokens = appSchema.table('email_verification_tokens', {
   id: text('id').primaryKey(),
   userId: uuid('user_id')

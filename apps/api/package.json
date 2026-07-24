@@ -10,7 +10,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
-    "test": "echo \"no tests yet\" && exit 0",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -21,17 +21,25 @@
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.1",
     "express-async-errors": "^3.1.1",
+    "nodemailer": "^9.0.3",
     "pg": "^8.22.0"
   },
   "devDependencies": {
     "@artemis-united/config": "*",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^22.9.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.15.0",
+    "imapflow": "^1.5.0",
+    "mailparser": "^3.9.14",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.7"
   }
 }
