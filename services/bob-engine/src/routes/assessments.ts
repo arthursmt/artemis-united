@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { desc, eq } from 'drizzle-orm'
+import { hashId, toAmountBracket } from '@artemis-united/logging'
 import { db } from '../db/client.js'
 import { assessments } from '../db/schema.js'
 import { runAssessment, type MonthlyFinancials } from '../domain/assessment.js'
@@ -128,7 +129,7 @@ assessmentsRouter.post('/', async (req, res) => {
     // Regra de fallback (Seção 1 do documento de parâmetros): setor fora dos 14
     // documentados ainda é calculado, sem parâmetro de segmentação — não é erro.
     captureAssessmentAnomaly('assessment.sector_fallback', {
-      businessId: parsed.businessId,
+      businessId: hashId(parsed.businessId),
       sectorSegment: parsed.sectorSegment,
     })
   }
@@ -137,10 +138,13 @@ assessmentsRouter.post('/', async (req, res) => {
     // Sinal estruturado para o front-end alertar o usuário (Etapa 3 é só API —
     // nenhum componente de UI é implementado aqui). Log via stack já decidida
     // (Sentry + Better Stack, decisão #12), sem mecanismo de log novo.
+    // businessId e recommendedAmount nunca em texto puro no log (mesmo padrão
+    // de faixa/hash da decisão #36 do analytics) — Better Stack é um destino
+    // externo de log, não um armazenamento de dado financeiro exato.
     captureAssessmentAnomaly('assessment.exceeds_microloan_ceiling', {
-      businessId: parsed.businessId,
+      businessId: hashId(parsed.businessId),
       sectorSegment: parsed.sectorSegment,
-      recommendedAmount: result.recommendedAmount,
+      recommendedAmountBracket: toAmountBracket(result.recommendedAmount),
       recommendationLimiter: result.recommendationLimiter,
     })
   }

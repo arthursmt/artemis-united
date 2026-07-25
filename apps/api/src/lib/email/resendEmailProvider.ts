@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { redactEmail } from '@artemis-united/logging'
 import type { EmailMessage, EmailProvider } from './EmailProvider.js'
 
 // Provedor de PRODUÇÃO — decisão fechada com o fundador (ver Log de decisões
@@ -34,7 +35,7 @@ export class ResendEmailProvider implements EmailProvider {
       JSON.stringify({
         event: 'email.sent',
         provider: 'resend',
-        to: message.to,
+        to: redactEmail(message.to),
         subject: message.subject,
         messageId: result.data?.id,
         timestamp: new Date().toISOString(),

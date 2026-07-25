@@ -15,6 +15,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@artemis-united/logging": "*",
     "@artemis-united/shared-types": "*",
     "argon2": "^0.45.0",
     "cookie-parser": "^1.4.7",

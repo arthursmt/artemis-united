@@ -15,6 +15,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@artemis-united/logging": "*",
     "@artemis-united/shared-types": "*",
     "@sentry/node": "^9.0.0",
     "drizzle-orm": "^0.45.2",

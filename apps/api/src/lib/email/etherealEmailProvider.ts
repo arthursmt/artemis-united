@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter, type SentMessageInfo, type TestAccount } from 'nodemailer'
+import { redactEmail } from '@artemis-united/logging'
 import type { EmailMessage, EmailProvider } from './EmailProvider.js'
 
 // Ethereal Email (https://ethereal.email, mantido pela equipe do Nodemailer) —
@@ -58,7 +59,7 @@ export class EtherealEmailProvider implements EmailProvider {
       JSON.stringify({
         event: 'email.sent',
         provider: 'ethereal',
-        to: message.to,
+        to: redactEmail(message.to),
         subject: message.subject,
         messageId: info.messageId,
         previewUrl: nodemailer.getTestMessageUrl(info) || undefined,
