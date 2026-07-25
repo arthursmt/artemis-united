@@ -1,3 +1,4 @@
+import { redactEmail } from '@artemis-united/logging'
 import { EtherealEmailProvider } from './etherealEmailProvider.js'
 import { ResendEmailProvider } from './resendEmailProvider.js'
 import type { EmailMessage, EmailProvider } from './EmailProvider.js'
@@ -30,7 +31,7 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
     console.error(
       JSON.stringify({
         event: 'email.send_failed',
-        to: message.to,
+        to: redactEmail(message.to),
         subject: message.subject,
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
