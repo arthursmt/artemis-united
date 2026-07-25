@@ -29,6 +29,8 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://artemis:artemis@localhost:5432/artemis_united
+      INTERNAL_SECRET: ci-internal-secret
+      BOB_ENGINE_URL: http://localhost:4100
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +54,20 @@ jobs:
         run: |
           npm run db:migrate --workspace=apps/api
           npm run db:migrate --workspace=services/bob-engine
+
+      - name: Build
+        run: npx turbo run build
+
+      - name: Start bob-engine
+        run: |
+          node services/bob-engine/dist/index.js > bob-engine.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4100/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "bob-engine did not become healthy in time" >&2
+          cat bob-engine.log
+          exit 1
 
       - name: Test
         run: npx turbo run test
