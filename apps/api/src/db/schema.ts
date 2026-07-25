@@ -78,6 +78,23 @@ export const twoFactorCodes = appSchema.table('two_factor_codes', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Rate limiting de login (Fase 3 do reforço de QA, plano mestre §2.4) — chave
+// combinada IP+email (nunca só um dos dois: só IP bloqueia rede
+// compartilhada/NAT inteira por um usuário; só email permite força bruta
+// distribuída de IPs diferentes contra a mesma conta). `attemptKey` é
+// sha256(ip + '|' + email) — hash em vez de duas colunas com unique composto
+// porque a única operação precisa é igualdade exata, nunca "listar por IP" ou
+// "listar por email" isoladamente; ver auth/loginRateLimit.ts. Bloqueio
+// progressivo: `lockedUntil` cresce exponencialmente a cada nova falha depois
+// do limiar inicial, até um teto — não é reset por bloqueio expirado, é reset
+// só por login bem-sucedido (deletar a linha).
+export const loginAttempts = appSchema.table('login_attempts', {
+  attemptKey: text('attempt_key').primaryKey(),
+  failedCount: integer('failed_count').notNull().default(0),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const maritalStatus = appSchema.enum('marital_status', [
   'single',
   'married',

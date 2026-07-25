@@ -9,6 +9,7 @@ import {
   generateVerificationToken,
   resendEmailVerificationToken,
 } from '../auth/emailVerification.js'
+import { checkLoginLockout, clearLoginAttempts, recordFailedLogin } from '../auth/loginRateLimit.js'
 import { requireAuth } from '../auth/middleware.js'
 import { hashPassword, isPasswordValid, verifyPassword } from '../auth/password.js'
 import { consumePasswordResetToken, createPasswordResetToken, generateResetToken } from '../auth/passwordReset.js'
@@ -145,6 +146,16 @@ authRouter.post('/login', async (req, res) => {
     return
   }
 
+  // Fase 3 do reforço de QA (plano mestre §2.4) — chave IP+email, checada
+  // antes de qualquer verificação de senha: um bloqueio ativo barra até a
+  // senha certa (ver auth/loginRateLimit.ts).
+  const ip = req.ip ?? 'unknown'
+  const lockout = await checkLoginLockout(ip, credentials.email)
+  if (lockout.locked) {
+    res.status(429).json({ error: 'too many failed attempts, try again later', retryAfterSeconds: lockout.retryAfterSeconds })
+    return
+  }
+
   const [user] = await db
     .select({
       id: users.id,
@@ -157,9 +168,12 @@ authRouter.post('/login', async (req, res) => {
     .where(eq(users.email, credentials.email))
 
   if (!user || !(await verifyPassword(user.passwordHash, credentials.password))) {
+    await recordFailedLogin(ip, credentials.email)
     res.status(401).json({ error: 'invalid email or password' })
     return
   }
+
+  await clearLoginAttempts(ip, credentials.email)
 
   if (!user.emailVerifiedAt) {
     res.status(403).json({ error: 'email not verified yet — check your inbox' })
