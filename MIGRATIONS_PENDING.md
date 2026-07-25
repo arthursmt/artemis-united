@@ -25,7 +25,7 @@ O script de role manual do Metabase (não gerenciado por `drizzle-kit`, ver
 seção própria abaixo) precisa ser rodado à parte, via `psql`, contra o
 mesmo banco.
 
-## `apps/api` (schema `app`) — 9 migrações
+## `apps/api` (schema `app`) — 10 migrações
 
 | # | Arquivo | O que faz |
 |---|---|---|
@@ -38,6 +38,7 @@ mesmo banco.
 | 0006 | `0006_cuddly_mole_man.sql` | Cria enum `marital_status` e tabela `customer_profiles` |
 | 0007 | `0007_young_zarek.sql` | Adiciona colunas de endereço/detalhes a `businesses` (Etapa 5, seção 4.4) |
 | 0008 | `0008_wet_tiger_shark.sql` | Cria `two_factor_codes` (Etapa 5, 2FA por email) |
+| 0009 | `0009_rich_lady_mastermind.sql` | Cria `login_attempts` (reforço de QA — Fase 3, rate limiting de login por IP+email) |
 
 ## `services/bob-engine` (schema `bob`) — 6 migrações + 1 script manual
 
